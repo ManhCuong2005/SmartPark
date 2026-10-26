@@ -1,0 +1,23 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="390" height="267" viewBox="0 0 390 267" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Parking hero art" clip-path="url(#clip0_0_17)">
+<rect width="390" height="267" fill="#10233E"/>
+<circle id="Decorative accent" cx="347" cy="47" r="90" fill="#25517D"/>
+<rect id="Parking floor" y="213" width="390" height="54" fill="#1D476A"/>
+<rect id="Paint bay line" x="16" y="186" width="3" height="49" rx="1" fill="#7AA0BC"/>
+<rect id="Paint bay line_2" x="97" y="186" width="3" height="49" rx="1" fill="#7AA0BC"/>
+<rect id="Paint bay line_3" x="178" y="186" width="3" height="49" rx="1" fill="#7AA0BC"/>
+<rect id="Paint bay line_4" x="259" y="186" width="3" height="49" rx="1" fill="#7AA0BC"/>
+<rect id="Paint bay line_5" x="340" y="186" width="3" height="49" rx="1" fill="#7AA0BC"/>
+<rect id="Car silhouette" x="79" y="150" width="235" height="65" rx="22" fill="#315FEA"/>
+<rect id="Car roof" x="125" y="118" width="151" height="56" rx="25" fill="#497DE8"/>
+<circle id="Wheel L" cx="141.5" cy="217.5" r="22.5" fill="#10233E"/>
+<circle id="Wheel R" cx="281.5" cy="217.5" r="22.5" fill="#10233E"/>
+<circle id="Hub L" cx="141.5" cy="217.5" r="8.5" fill="#B5CEE8"/>
+<circle id="Hub R" cx="281.5" cy="217.5" r="8.5" fill="#B5CEE8"/>
+</g>
+<defs>
+<clipPath id="clip0_0_17">
+<rect width="390" height="267" fill="white"/>
+</clipPath>
+</defs>
+</svg>

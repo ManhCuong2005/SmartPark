@@ -1,0 +1,41 @@
+import 'package:flutter/material.dart';
+
+abstract final class ParkColors {
+  static const navy = Color(0xFF10233E);
+  static const ink = Color(0xFF13243B);
+  static const blue = Color(0xFF315FEA);
+  static const teal = Color(0xFF17B29A);
+  static const muted = Color(0xFF738197);
+  static const light = Color(0xFFF5F7FB);
+  static const line = Color(0xFFE8EDF4);
+  static const paleBlue = Color(0xFFEAF0FF);
+  static const paleGreen = Color(0xFFE8F8F2);
+  static const green = Color(0xFF108D6D);
+}
+
+ThemeData parkTheme() => ThemeData(
+  useMaterial3: true,
+  fontFamily: 'Inter',
+  scaffoldBackgroundColor: ParkColors.light,
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: ParkColors.blue,
+    primary: ParkColors.blue,
+  ),
+  textTheme: const TextTheme(
+    bodyMedium: TextStyle(color: ParkColors.ink, fontSize: 14),
+  ),
+  inputDecorationTheme: InputDecorationTheme(
+    filled: true,
+    fillColor: ParkColors.light,
+    hintStyle: const TextStyle(color: Color(0xFF9CA9BC), fontSize: 14),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: ParkColors.line),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: ParkColors.line),
+    ),
+  ),
+);

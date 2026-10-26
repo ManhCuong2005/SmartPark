@@ -1,0 +1,458 @@
+{
+  "30_5_imgIconCar": {
+    "width": 24,
+    "height": 24
+  },
+  "30_5_imgIconHome": {
+    "width": 20,
+    "height": 20
+  },
+  "30_5_imgIconBuilding": {
+    "width": 20,
+    "height": 20
+  },
+  "30_5_imgIconTicket": {
+    "width": 20,
+    "height": 20
+  },
+  "30_5_imgIconUsers": {
+    "width": 20,
+    "height": 20
+  },
+  "30_5_imgIconChart": {
+    "width": 20,
+    "height": 20
+  },
+  "30_5_imgIconSettings": {
+    "width": 20,
+    "height": 20
+  },
+  "30_5_imgIconHelp": {
+    "width": 22,
+    "height": 22
+  },
+  "30_5_imgIconSearch": {
+    "width": 21,
+    "height": 21
+  },
+  "30_5_imgIconBell": {
+    "width": 21,
+    "height": 21
+  },
+  "30_5_imgNotificationDot": {
+    "width": 7,
+    "height": 7
+  },
+  "30_5_imgAvatar": {
+    "width": 27,
+    "height": 27
+  },
+  "30_5_imgIconCalendar": {
+    "width": 20,
+    "height": 20
+  },
+  "30_5_imgIconBuilding1": {
+    "width": 21,
+    "height": 21
+  },
+  "30_5_imgIconCar1": {
+    "width": 21,
+    "height": 21
+  },
+  "30_5_imgIconMapPin": {
+    "width": 21,
+    "height": 21
+  },
+  "30_5_imgIconChart1": {
+    "width": 21,
+    "height": 21
+  },
+  "30_5_imgDonutBase": {
+    "width": 168,
+    "height": 168
+  },
+  "30_5_imgDonutForeground": {
+    "width": 136,
+    "height": 136
+  },
+  "30_5_imgDonutCutout": {
+    "width": 90,
+    "height": 90
+  },
+  "30_5_imgLegendBusy": {
+    "width": 9,
+    "height": 9
+  },
+  "30_5_imgLegendFree": {
+    "width": 9,
+    "height": 9
+  },
+  "30_177_imgIconCar": {
+    "width": 24,
+    "height": 24
+  },
+  "30_177_imgIconHome": {
+    "width": 20,
+    "height": 20
+  },
+  "30_177_imgIconBuilding": {
+    "width": 20,
+    "height": 20
+  },
+  "30_177_imgIconTicket": {
+    "width": 20,
+    "height": 20
+  },
+  "30_177_imgIconUsers": {
+    "width": 20,
+    "height": 20
+  },
+  "30_177_imgIconChart": {
+    "width": 20,
+    "height": 20
+  },
+  "30_177_imgIconSettings": {
+    "width": 20,
+    "height": 20
+  },
+  "30_177_imgIconHelp": {
+    "width": 22,
+    "height": 22
+  },
+  "30_177_imgIconSearch": {
+    "width": 21,
+    "height": 21
+  },
+  "30_177_imgIconBell": {
+    "width": 21,
+    "height": 21
+  },
+  "30_177_imgNotificationDot": {
+    "width": 7,
+    "height": 7
+  },
+  "30_177_imgAvatar": {
+    "width": 27,
+    "height": 27
+  },
+  "30_177_imgIconBuilding1": {
+    "width": 21,
+    "height": 21
+  },
+  "30_177_imgIconCar1": {
+    "width": 21,
+    "height": 21
+  },
+  "30_177_imgIconMapPin": {
+    "width": 21,
+    "height": 21
+  },
+  "30_177_imgIconSearch1": {
+    "width": 20,
+    "height": 20
+  },
+  "30_177_imgIconFilter": {
+    "width": 18,
+    "height": 18
+  },
+  "30_177_imgIconBuilding2": {
+    "width": 20,
+    "height": 20
+  },
+  "30_177_imgIconMore": {
+    "width": 21,
+    "height": 21
+  },
+  "30_382_imgIconCar": {
+    "width": 24,
+    "height": 24
+  },
+  "30_382_imgIconHome": {
+    "width": 20,
+    "height": 20
+  },
+  "30_382_imgIconBuilding": {
+    "width": 20,
+    "height": 20
+  },
+  "30_382_imgIconTicket": {
+    "width": 20,
+    "height": 20
+  },
+  "30_382_imgIconUsers": {
+    "width": 20,
+    "height": 20
+  },
+  "30_382_imgIconChart": {
+    "width": 20,
+    "height": 20
+  },
+  "30_382_imgIconSettings": {
+    "width": 20,
+    "height": 20
+  },
+  "30_382_imgIconHelp": {
+    "width": 22,
+    "height": 22
+  },
+  "30_382_imgIconSearch": {
+    "width": 21,
+    "height": 21
+  },
+  "30_382_imgIconBell": {
+    "width": 21,
+    "height": 21
+  },
+  "30_382_imgNotificationDot": {
+    "width": 7,
+    "height": 7
+  },
+  "30_382_imgAvatar": {
+    "width": 27,
+    "height": 27
+  },
+  "30_382_imgIconSearch1": {
+    "width": 20,
+    "height": 20
+  },
+  "30_382_imgIconFilter": {
+    "width": 20,
+    "height": 20
+  },
+  "30_382_imgIconCalendar": {
+    "width": 20,
+    "height": 20
+  },
+  "30_382_imgIconTicket1": {
+    "width": 21,
+    "height": 21
+  },
+  "30_382_imgIconCar1": {
+    "width": 21,
+    "height": 21
+  },
+  "30_382_imgIconClock": {
+    "width": 21,
+    "height": 21
+  },
+  "30_553_imgIconCar": {
+    "width": 24,
+    "height": 24
+  },
+  "30_553_imgIconHome": {
+    "width": 20,
+    "height": 20
+  },
+  "30_553_imgIconBuilding": {
+    "width": 20,
+    "height": 20
+  },
+  "30_553_imgIconTicket": {
+    "width": 20,
+    "height": 20
+  },
+  "30_553_imgIconUsers": {
+    "width": 20,
+    "height": 20
+  },
+  "30_553_imgIconChart": {
+    "width": 20,
+    "height": 20
+  },
+  "30_553_imgIconSettings": {
+    "width": 20,
+    "height": 20
+  },
+  "30_553_imgIconHelp": {
+    "width": 22,
+    "height": 22
+  },
+  "30_553_imgIconSearch": {
+    "width": 21,
+    "height": 21
+  },
+  "30_553_imgIconBell": {
+    "width": 21,
+    "height": 21
+  },
+  "30_553_imgNotificationDot": {
+    "width": 7,
+    "height": 7
+  },
+  "30_553_imgAvatar": {
+    "width": 27,
+    "height": 27
+  },
+  "30_553_imgIconUsers1": {
+    "width": 21,
+    "height": 21
+  },
+  "30_553_imgIconClock": {
+    "width": 21,
+    "height": 21
+  },
+  "30_553_imgIconCalendar": {
+    "width": 21,
+    "height": 21
+  },
+  "30_553_imgIconSearch1": {
+    "width": 20,
+    "height": 20
+  },
+  "30_553_imgIconInfo": {
+    "width": 20,
+    "height": 20
+  },
+  "30_735_imgIconCar": {
+    "width": 24,
+    "height": 24
+  },
+  "30_735_imgIconHome": {
+    "width": 20,
+    "height": 20
+  },
+  "30_735_imgIconBuilding": {
+    "width": 20,
+    "height": 20
+  },
+  "30_735_imgIconTicket": {
+    "width": 20,
+    "height": 20
+  },
+  "30_735_imgIconUsers": {
+    "width": 20,
+    "height": 20
+  },
+  "30_735_imgIconChart": {
+    "width": 20,
+    "height": 20
+  },
+  "30_735_imgIconSettings": {
+    "width": 20,
+    "height": 20
+  },
+  "30_735_imgIconHelp": {
+    "width": 22,
+    "height": 22
+  },
+  "30_735_imgIconSearch": {
+    "width": 21,
+    "height": 21
+  },
+  "30_735_imgIconBell": {
+    "width": 21,
+    "height": 21
+  },
+  "30_735_imgNotificationDot": {
+    "width": 7,
+    "height": 7
+  },
+  "30_735_imgAvatar": {
+    "width": 27,
+    "height": 27
+  },
+  "30_735_imgIconChart1": {
+    "width": 21,
+    "height": 21
+  },
+  "30_735_imgIconTicket1": {
+    "width": 21,
+    "height": 21
+  },
+  "30_735_imgIconCredit": {
+    "width": 21,
+    "height": 21
+  },
+  "30_735_imgLegendDot": {
+    "width": 10,
+    "height": 10
+  },
+  "30_735_imgLegendDot1": {
+    "width": 10,
+    "height": 10
+  },
+  "30_735_imgLegendDot2": {
+    "width": 10,
+    "height": 10
+  },
+  "30_735_imgLegendDot3": {
+    "width": 10,
+    "height": 10
+  },
+  "30_894_imgIconCar": {
+    "width": 24,
+    "height": 24
+  },
+  "30_894_imgIconHome": {
+    "width": 20,
+    "height": 20
+  },
+  "30_894_imgIconBuilding": {
+    "width": 20,
+    "height": 20
+  },
+  "30_894_imgIconTicket": {
+    "width": 20,
+    "height": 20
+  },
+  "30_894_imgIconUsers": {
+    "width": 20,
+    "height": 20
+  },
+  "30_894_imgIconChart": {
+    "width": 20,
+    "height": 20
+  },
+  "30_894_imgIconSettings": {
+    "width": 20,
+    "height": 20
+  },
+  "30_894_imgIconHelp": {
+    "width": 22,
+    "height": 22
+  },
+  "30_894_imgIconSearch": {
+    "width": 21,
+    "height": 21
+  },
+  "30_894_imgIconBell": {
+    "width": 21,
+    "height": 21
+  },
+  "30_894_imgNotificationDot": {
+    "width": 7,
+    "height": 7
+  },
+  "30_894_imgAvatar": {
+    "width": 27,
+    "height": 27
+  },
+  "30_894_imgIconBuilding1": {
+    "width": 22,
+    "height": 22
+  },
+  "30_894_imgIconDown": {
+    "width": 19,
+    "height": 19
+  },
+  "30_894_imgIconInfo": {
+    "width": 19,
+    "height": 19
+  },
+  "30_894_imgSwitchChoPhepDtTrc": {
+    "width": 49,
+    "height": 27
+  },
+  "30_894_imgSwitchTDngHyKhiQuaGi": {
+    "width": 49,
+    "height": 27
+  },
+  "30_894_imgIconShield": {
+    "width": 23,
+    "height": 23
+  },
+  "30_894_imgIconRefresh": {
+    "width": 23,
+    "height": 23
+  }
+}

@@ -1,0 +1,68 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Local three-app launcher logs
+.smartpark/
+
+# Local environment and IDE migration state
+.env
+.env.*
+!.env.example
+/.github/modernize/
+
+# Transient Figma MCP context and capability URLs (assets are already local)
+/docs/figma/*.txt
+/docs/figma/assets.json
+/docs/figma/screenshots.json
+/admin-web/docs/figma/*.txt
+/admin-web/docs/figma/assets.json
+/admin-web/docs/figma/screenshots.json
+
+# One-time import helpers depend on the local transient MCP manifests above
+/tools/download_figma.cjs
+/tools/download_references.cjs
+/admin-web/tools/download-assets.mjs
+/admin-web/tools/asset-metadata.mjs

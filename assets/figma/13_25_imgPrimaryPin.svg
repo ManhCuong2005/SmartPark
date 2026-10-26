@@ -1,0 +1,10 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="87" height="90" viewBox="0 0 87 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Primary pin">
+<rect width="87" height="90" rx="26" fill="#315FEA"/>
+<g id="Icon / map-pin">
+<path id="Vector" d="M59.1667 34.5833C59.1667 44.375 43.5 56.125 43.5 56.125C43.5 56.125 27.8333 44.375 27.8333 34.5833C27.8333 30.4283 29.4839 26.4434 32.422 23.5053C35.3601 20.5673 39.3449 18.9167 43.5 18.9167C47.6551 18.9167 51.6399 20.5673 54.578 23.5053C57.5161 26.4434 59.1667 30.4283 59.1667 34.5833Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke="white"/>
+<path id="Vector_2" d="M48.3958 34.5833C48.3958 37.2872 46.2039 39.4792 43.5 39.4792C40.7961 39.4792 38.6042 37.2872 38.6042 34.5833C38.6042 31.8794 40.7961 29.6875 43.5 29.6875C46.2039 29.6875 48.3958 31.8794 48.3958 34.5833Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke="white"/>
+</g>
+<circle id="Pulse" cx="43" cy="75" r="7" fill="#17B29A"/>
+</g>
+</svg>
