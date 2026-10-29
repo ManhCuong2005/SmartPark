@@ -39,9 +39,14 @@ Lần đầu có thể cần chờ một vài phút để Flutter biên dịch. 
 
 Nếu cổng đã có chương trình khác sử dụng, launcher báo cổng bị chiếm và không dừng chương trình đó. Hãy dừng phiên SmartPark cũ trước khi chạy phiên mới. Log chẩn đoán nằm trong `.smartpark/logs/`.
 
-Các giao diện vẫn dùng mock riêng, chưa đồng bộ qua backend.
+Các giao diện dùng chung Supabase Cloud. Cần chạy migrations, đăng ký tài khoản và
+cấp quyền theo [SUPABASE_SETUP.md](SUPABASE_SETUP.md). Camera OCR ML Kit cần chạy
+app Android/iOS; Web chỉ hỗ trợ các phần tương thích như danh sách, đặt chỗ và QR.
 
 ## Kiểm tra đã thực hiện
+
+Các kiểm tra bên dưới thuộc launcher prototype trước khi nối backend; kết quả
+triển khai hiện tại ở [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
 
 - Kiểm tra Node syntax và chế độ `--check`.
 - Chạy đồng thời cả ba server bằng `--no-open`, với hai lượt biên dịch Flutter được tuần tự hóa.

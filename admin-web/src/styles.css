@@ -19,6 +19,144 @@
   --green: #e7f8f2;
   --amber: #fff5e6;
 }
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.auth-panel {
+  width: min(440px, 100%);
+  display: grid;
+  gap: 20px;
+}
+.auth-panel label,
+.live-form label {
+  display: grid;
+  gap: 8px;
+}
+.auth-panel input,
+.live-form input,
+.live-form select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.live-form {
+  display: grid;
+  gap: 18px;
+}
+.live-form input[type="checkbox"] {
+  width: auto;
+}
+.live-filters {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.live-filters .search-field {
+  flex: 1;
+  min-width: 200px;
+}
+.live-donut {
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin: 25px auto;
+}
+.live-donut > div {
+  width: 145px;
+  height: 145px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  align-content: center;
+  text-align: center;
+}
+.live-donut strong {
+  font-size: 32px;
+}
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+  max-height: 420px;
+  overflow: auto;
+}
+.slot-cell {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--green);
+}
+.slot-cell small {
+  font-size: 11px;
+}
+.slot-cell.occupied {
+  background: #e6ebf3;
+}
+.slot-cell.disabled {
+  background: var(--amber);
+}
+.dark {
+  color-scheme: dark;
+  color: #e6edf6;
+  background: #101824;
+  --line: #324156;
+  --muted: #a3b3c7;
+  --pale: #243a60;
+  --green: #153d35;
+  --amber: #493b24;
+}
+.dark body,
+.dark .main-content,
+.dark .auth-page {
+  background: #101824;
+  color: #e6edf6;
+}
+.dark .panel,
+.dark .topbar,
+.dark .dialog,
+.dark .live-donut > div,
+.dark .search-field,
+.dark input,
+.dark select {
+  background: #1c293a;
+  color: #e6edf6;
+}
+.dark h1,
+.dark h2,
+.dark strong,
+.dark td,
+.dark .metric strong {
+  color: #e6edf6;
+}
+.dark .metric,
+.dark .slot-cell.occupied {
+  background: #26374c;
+}
+.dark .dialog-header,
+.dark .dialog-footer {
+  background: #1c293a;
+}
+.dark th,
+.dark .admin-chip {
+  background: #26374c;
+  color: #d8e4f5;
+}
+.dark .badge.gray {
+  background: #334459;
+  color: #d8e4f5;
+}
+.dark a {
+  color: #8caaff;
+}
 * {
   box-sizing: border-box;
 }

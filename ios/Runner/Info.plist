@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSCameraUsageDescription</key>
+    <string>SmartPark sử dụng camera để quét QR và nhận diện biển số khi xe vào/ra bãi.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>SmartPark sử dụng vị trí để giúp tìm bãi đỗ gần bạn.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

@@ -1,0 +1,4 @@
+storePassword=FILL_LOCALLY
+keyPassword=FILL_LOCALLY
+keyAlias=smartpark
+storeFile=../smartpark-upload.jks

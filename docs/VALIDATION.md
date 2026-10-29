@@ -1,4 +1,6 @@
-﻿# Validation — 26 October 2026
+> Tài liệu lịch sử của bản prototype Figma. Trạng thái backend và kiểm thử hiện tại xem [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
+# Validation — 26 October 2026
 
 - Flutter 3.29.0 / Dart 3.7.0.
 - Dart analyzer: no issues.

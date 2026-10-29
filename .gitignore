@@ -52,6 +52,18 @@ app.*.map.json
 .env.*
 !.env.example
 /.github/modernize/
+/android/key.properties
+*.jks
+*.keystore
+/android/.bundle/
+/android/vendor/
+/android/.kotlin/
+/coverage/
+/web/sqlite3.wasm
+/web/sqlite3.version
+/web/drift_worker.dart.js*
+/web/drift_worker.dart.js.deps
+/config/*.local.json
 
 # Transient Figma MCP context and capability URLs (assets are already local)
 /docs/figma/*.txt

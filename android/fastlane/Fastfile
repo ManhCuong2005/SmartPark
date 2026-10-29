@@ -1,0 +1,24 @@
+require "fileutils"
+default_platform(:android)
+
+platform :android do
+  desc "Build signed customer/staff APK + AAB locally; never upload or publish"
+  lane :build_release do
+    project_root = File.expand_path("../..", __dir__)
+    key_file = File.join(project_root, "android", "key.properties")
+    UI.user_error!("Missing android/key.properties") unless File.exist?(key_file)
+    build_number = ENV.fetch("BUILD_NUMBER", "1")
+    Dir.chdir(project_root) do
+      sh("flutter", "pub", "get")
+      { "customer" => "lib/main.dart", "staff" => "lib/main_staff.dart" }.each do |role, target|
+        sh("flutter", "build", "apk", "--release", "--flavor", role, "-t", target, "--build-number", build_number,
+          "--dart-define=SMARTPARK_ROLE=#{role}")
+        FileUtils.mkdir_p("build/signed/#{role}")
+        FileUtils.cp("build/app/outputs/flutter-apk/app-#{role}-release.apk", "build/signed/#{role}/smartpark-#{role}.apk")
+        sh("flutter", "build", "appbundle", "--release", "--flavor", role, "-t", target, "--build-number", build_number,
+          "--dart-define=SMARTPARK_ROLE=#{role}")
+        FileUtils.cp("build/app/outputs/bundle/#{role}Release/app-#{role}-release.aab", "build/signed/#{role}/smartpark-#{role}.aab")
+      end
+    end
+  end
+end

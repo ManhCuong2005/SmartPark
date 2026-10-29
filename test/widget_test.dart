@@ -1,73 +1,122 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smartpark/app/smartpark_app.dart';
+import 'package:smartpark/app/providers.dart';
+import 'package:smartpark/presentation/park_controller.dart';
+import 'support/test_repository.dart';
 
-const screens = <String, String>{
-  '13_3': '/',
-  '13_25': '/onboarding',
-  '13_61': '/login',
-  '13_96': '/register',
-  '13_139': '/home',
-  '13_236': '/parking/map',
-  '13_333': '/parking/list',
-  '13_429': '/parking/detail',
-  '16_7': '/booking/slots',
-  '16_73': '/booking/time',
-  '16_134': '/booking/confirm',
-  '16_176': '/booking/payment',
-  '16_228': '/tickets/qr',
-  '16_390': '/tickets',
-  '16_451': '/vehicles',
-  '16_508': '/profile',
-  '16_590': '/notifications',
-  '27_7': '/staff/login',
-  '27_42': '/staff/home',
-  '27_110': '/staff/scan',
-  '27_144': '/staff/confirm',
-  '27_191': '/staff/slots',
-};
+Future<void> mount(
+  WidgetTester tester,
+  String route, {
+  bool loggedIn = true,
+  bool staff = false,
+  double width = 390,
+  Brightness brightness = Brightness.light,
+}) async {
+  tester.view.physicalSize = Size(width, 844);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  final controller = ParkController(
+    TestRepository(loggedIn: loggedIn, staff: staff),
+    monitorConnectivity: false,
+  );
+  await controller.initialize();
+  controller.selectedBookingId = '60000000-0000-0000-0000-000000000001';
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        parkControllerProvider.overrideWith((ref) => controller),
+        themeModeProvider.overrideWith(
+          (ref) =>
+              brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
+        ),
+      ],
+      child: SmartParkApp(initialRoute: route, staff: staff),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
-    final font = FontLoader('Inter')
-      ..addFont(rootBundle.load('assets/fonts/Inter.ttf'));
-    await font.load();
-    final icons = FontLoader('MaterialIcons')
-      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
-    await icons.load();
+    await (FontLoader('Inter')
+      ..addFont(rootBundle.load('assets/fonts/Inter.ttf'))).load();
+    await (FontLoader('MaterialIcons')
+      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
   });
-  for (final width in [390.0, 320.0, 480.0]) {
-    for (final screen in screens.entries) {
-      testWidgets('${screen.key} at $width has no layout or asset errors', (
-        tester,
-      ) async {
-        tester.view.physicalSize = Size(width, 844);
-        tester.view.devicePixelRatio = 1;
-        tester.view.padding = const FakeViewPadding(top: 34);
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        addTearDown(tester.view.resetPadding);
-        await tester.pumpWidget(
-          SmartParkApp(key: UniqueKey(), initialRoute: screen.value),
-        );
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-        if (width == 390) {
-          await expectLater(
-            find.byType(MaterialApp),
-            matchesGoldenFile('goldens/${screen.key}.png'),
-          );
-        }
-      });
-    }
-  }
-  testWidgets('Login validates empty fields', (tester) async {
-    await tester.pumpWidget(const SmartParkApp(initialRoute: '/login'));
-    await tester.pumpAndSettle();
+  testWidgets('protected route shows real login form to signed-out user', (
+    tester,
+  ) async {
+    await mount(tester, '/home', loggedIn: false);
+    expect(find.byType(TextFormField), findsNWidgets(2));
+    expect(find.text('Bạn muốn đỗ xe\nở đâu hôm nay?'), findsNothing);
     await tester.ensureVisible(find.text('Đăng nhập').last);
     await tester.tap(find.text('Đăng nhập').last);
     await tester.pumpAndSettle();
     expect(find.text('Vui lòng nhập Địa chỉ email'), findsOneWidget);
+  });
+  testWidgets('active route reacts to Riverpod data updates and sign-out', (
+    tester,
+  ) async {
+    await mount(tester, '/parking/list');
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(Scaffold).first),
+    );
+    final state = container.read(parkControllerProvider);
+    final data = Map<String, dynamic>.from(state.snapshot.data);
+    final lots = state.snapshot.rows('lots');
+    lots.first['name'] = 'Updated from realtime';
+    data['lots'] = lots;
+    state.update(() => state.snapshot = ParkingSnapshot(data));
+    await tester.pumpAndSettle();
+    expect(find.text('Updated from realtime'), findsOneWidget);
+    await state.signOut();
+    await tester.pumpAndSettle();
+    expect(find.byType(TextFormField), findsNWidgets(2));
+  });
+  for (final width in [320.0, 390.0, 480.0]) {
+    for (final route in [
+      '/home',
+      '/parking/list',
+      '/parking/detail',
+      '/booking/slots',
+      '/booking/time',
+      '/booking/confirm',
+      '/booking/payment',
+      '/tickets/qr',
+      '/tickets',
+      '/vehicles',
+      '/profile',
+      '/profile/edit',
+      '/notifications',
+      '/sync',
+      '/staff/home',
+      '/staff/slots',
+      '/staff/account',
+    ]) {
+      testWidgets('$route responds without overflow at $width', (tester) async {
+        await mount(
+          tester,
+          route,
+          width: width,
+          staff: route.startsWith('/staff'),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+  testWidgets('dark mode retains readable ticket and form screens', (
+    tester,
+  ) async {
+    await mount(tester, '/tickets/qr', brightness: Brightness.dark);
+    expect(
+      Theme.of(tester.element(find.byType(Scaffold).first)).brightness,
+      Brightness.dark,
+    );
+    expect(find.text('Vé điện tử SmartPark'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

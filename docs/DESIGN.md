@@ -1,4 +1,6 @@
-﻿# Figma analysis and implementation map
+> Tài liệu lịch sử của bản prototype Figma. Trạng thái backend và kiểm thử hiện tại xem [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
+# Figma analysis and implementation map
 
 Source: https://www.figma.com/design/oJJUHIXnHwSQpH3hjtFMXI
 

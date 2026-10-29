@@ -147,6 +147,11 @@ async function main() {
   fs.mkdirSync(logDir, { recursive: true });
   const config = path.join(root, '.dart_tool', 'package_config.json');
   if (newer(path.join(root, 'pubspec.yaml'), config)) await prepare('Flutter-packages', 'flutter.bat pub get', root);
+  if (!fs.existsSync(path.join(root, 'web', 'sqlite3.wasm')) ||
+      !fs.existsSync(path.join(root, 'web', 'drift_worker.dart.js')) ||
+      newer(path.join(root, 'pubspec.lock'), path.join(root, 'web', 'drift_worker.dart.js'))) {
+    await prepare('Offline-web-assets', 'dart.bat run tools/prepare_web.dart', root);
+  }
   const admin = path.join(root, 'admin-web');
   if (!fs.existsSync(path.join(admin, 'node_modules', 'vite', 'bin', 'vite.js')) ||
       newer(path.join(admin, 'package-lock.json'), path.join(admin, 'node_modules', '.package-lock.json'))) {

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
-import 'app/smartpark_app.dart';
+import 'app/bootstrap.dart';
 
-void main() => runApp(const SmartParkApp());
+Future<void> main() => bootstrap();

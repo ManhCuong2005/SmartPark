@@ -28,7 +28,7 @@ export const nav = [
 export function Layout() {
   const { pathname, search: routeSearch } = useLocation(),
     navigate = useNavigate(),
-    { data, reset, notice } = useAdmin();
+    { data, refresh, signOut, profile, online, lastUpdated } = useAdmin();
   const [mobile, setMobile] = useState(false),
     [help, setHelp] = useState(false),
     [notifications, setNotifications] = useState(false),
@@ -182,7 +182,22 @@ export function Layout() {
               )}
             </div>
             <div className="topbar-actions">
-              <span className="demo-label">Dữ liệu demo</span>
+              <span className="demo-label" title={lastUpdated}>
+                {online ? "Supabase · đã kết nối" : "Chưa kết nối"}
+              </span>
+              <button
+                aria-label="Đổi giao diện sáng tối"
+                onClick={() => {
+                  const dark =
+                    document.documentElement.classList.toggle("dark");
+                  localStorage.setItem(
+                    "smartpark-theme",
+                    dark ? "dark" : "light",
+                  );
+                }}
+              >
+                ◐
+              </button>
               <button
                 className="notification-button"
                 aria-label="Xem thông báo"
@@ -214,14 +229,13 @@ export function Layout() {
             footer={<Button onClick={() => setHelp(false)}>Đã hiểu</Button>}
           >
             <p>
-              Đây là giao diện Admin SmartPark với dữ liệu demo lưu trên trình
-              duyệt. Bạn có thể thêm bãi đỗ, phân ca nhân viên, tra cứu đơn và
-              xuất CSV.
+              Quản lý bãi đỗ, phân công nhân viên, tra cứu vé và xuất báo cáo từ
+              dữ liệu Supabase Cloud.
             </p>
             <p>
-              Các cổng thanh toán, Firebase, camera/QR và dữ liệu vận hành thực
-              tế chưa được kết nối. Thay đổi quy tắc chỉ cập nhật mô phỏng
-              local.
+              Nhân viên quét QR và nhận diện biển số trên ứng dụng di động.
+              Doanh thu được ghi nhận khi nhân viên xác nhận thu tiền mặt và
+              check-out.
             </p>
           </Dialog>
         )}
@@ -232,16 +246,21 @@ export function Layout() {
           >
             <ul className="notification-list">
               <li>
-                <strong>02 lượt đặt chỗ sắp đến</strong>
-                <p>
-                  Kiểm tra bãi xe Trung tâm và phân công nhân viên trong ca
-                  demo.
-                </p>
+                <strong>
+                  {
+                    data.bookings.filter((b) => b.status === "Đã xác nhận")
+                      .length
+                  }{" "}
+                  vé đang chờ xe vào
+                </strong>
+                <p>Theo dõi chi tiết tại mục Đặt chỗ.</p>
               </li>
               <li>
-                <strong>Dữ liệu đang ở chế độ mô phỏng</strong>
+                <strong>
+                  {online ? "Đã kết nối Supabase" : "Chưa kết nối máy chủ"}
+                </strong>
                 <p>
-                  Không có giao dịch thanh toán hoặc cập nhật từ thiết bị thực.
+                  Cập nhật gần nhất: {lastUpdated || "chưa tải được dữ liệu"}.
                 </p>
               </li>
             </ul>
@@ -249,38 +268,36 @@ export function Layout() {
         )}
         {account && (
           <Dialog
-            title="Tài khoản quản trị demo"
+            title="Tài khoản chủ bãi"
             onClose={() => setAccount(false)}
             footer={
               <Button
                 secondary
                 onClick={() => {
-                  reset();
+                  void refresh();
                   setAccount(false);
                   navigate("/");
                 }}
               >
-                Khôi phục dữ liệu demo
+                Tải lại dữ liệu
               </Button>
             }
           >
             <p>
-              <strong>Admin SmartPark</strong> · Quản trị viên
+              <strong>{String(profile.name ?? "")}</strong> · Chủ bãi
             </p>
             <p>
-              Chưa kết nối xác thực hoặc phân quyền backend. Bản demo không yêu
-              cầu đăng nhập.
+              {String(profile.email ?? "")}. Chỉ có quyền quản lý các bãi thuộc
+              tài khoản này.
             </p>
             <Button
               secondary
               onClick={() => {
-                notice(
-                  "Chế độ demo chưa kết nối đăng nhập hoặc đăng xuất thực tế.",
-                );
+                void signOut();
                 setAccount(false);
               }}
             >
-              Thông tin phiên demo
+              Đăng xuất
             </Button>
           </Dialog>
         )}

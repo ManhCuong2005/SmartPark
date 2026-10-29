@@ -13,20 +13,25 @@ abstract final class ParkColors {
   static const green = Color(0xFF108D6D);
 }
 
-ThemeData parkTheme() => ThemeData(
+ThemeData parkTheme({bool dark = false}) => ThemeData(
   useMaterial3: true,
   fontFamily: 'Inter',
-  scaffoldBackgroundColor: ParkColors.light,
+  brightness: dark ? Brightness.dark : Brightness.light,
+  scaffoldBackgroundColor: dark ? const Color(0xFF101824) : ParkColors.light,
   colorScheme: ColorScheme.fromSeed(
     seedColor: ParkColors.blue,
+    brightness: dark ? Brightness.dark : Brightness.light,
     primary: ParkColors.blue,
   ),
-  textTheme: const TextTheme(
-    bodyMedium: TextStyle(color: ParkColors.ink, fontSize: 14),
+  textTheme: TextTheme(
+    bodyMedium: TextStyle(
+      color: dark ? Colors.white : ParkColors.ink,
+      fontSize: 14,
+    ),
   ),
   inputDecorationTheme: InputDecorationTheme(
     filled: true,
-    fillColor: ParkColors.light,
+    fillColor: dark ? const Color(0xFF1C293A) : ParkColors.light,
     hintStyle: const TextStyle(color: Color(0xFF9CA9BC), fontSize: 14),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
     border: OutlineInputBorder(

@@ -47,7 +47,11 @@ class Txt extends StatelessWidget {
     textAlign: align,
     style: TextStyle(
       fontSize: size,
-      color: color,
+      color:
+          Theme.of(context).brightness == Brightness.dark &&
+                  color == ParkColors.ink
+              ? Theme.of(context).colorScheme.onSurface
+              : color,
       fontWeight: weight,
       height: height,
     ),
@@ -71,7 +75,8 @@ class ParkButton extends StatelessWidget {
     child: FilledButton(
       onPressed: onPressed,
       style: FilledButton.styleFrom(
-        backgroundColor: secondary ? Colors.white : ParkColors.blue,
+        backgroundColor:
+            secondary ? Theme.of(context).colorScheme.surface : ParkColors.blue,
         foregroundColor: secondary ? ParkColors.blue : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -103,7 +108,10 @@ class ParkCard extends StatelessWidget {
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => Material(
-    color: color,
+    color:
+        Theme.of(context).brightness == Brightness.dark && color == Colors.white
+            ? Theme.of(context).colorScheme.surface
+            : color,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(18),
       side: const BorderSide(color: ParkColors.line),
@@ -130,12 +138,16 @@ class ParkPage extends StatelessWidget {
   final EdgeInsets padding;
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFFE4E9F1),
+    backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
         child: ColoredBox(
-          color: color,
+          color:
+              Theme.of(context).brightness == Brightness.dark &&
+                      (color == ParkColors.light || color == Colors.white)
+                  ? Theme.of(context).scaffoldBackgroundColor
+                  : color,
           child: SafeArea(
             child: Column(
               children: [
@@ -301,8 +313,8 @@ class ParkBottomNav extends StatelessWidget {
             : ['13:139', '13:236', '16:228', '16:508'][active];
     return Container(
       height: staff ? 81 : 86,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
         border: Border(top: BorderSide(color: ParkColors.line)),
       ),
       child: Row(
@@ -365,16 +377,16 @@ class BottomAction extends StatelessWidget {
       Padding(padding: const EdgeInsets.fromLTRB(24, 16, 24, 20), child: child);
 }
 
-void mockMessage(BuildContext context, String message) => ScaffoldMessenger.of(
+void showMessage(BuildContext context, String message) => ScaffoldMessenger.of(
   context,
 ).showSnackBar(SnackBar(content: Text(message)));
 
-Future<bool> confirmMock(BuildContext context, String message) async =>
+Future<bool> confirmAction(BuildContext context, String message) async =>
     await showDialog<bool>(
       context: context,
       builder:
           (c) => AlertDialog(
-            title: const Text('Mô phỏng SmartPark'),
+            title: const Text('Xác nhận SmartPark'),
             content: Text(message),
             actions: [
               TextButton(
@@ -383,9 +395,56 @@ Future<bool> confirmMock(BuildContext context, String message) async =>
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(c, true),
-                child: const Text('Tiếp tục mô phỏng'),
+                child: const Text('Xác nhận'),
               ),
             ],
           ),
     ) ??
     false;
+
+Future<bool> runAction(
+  BuildContext context,
+  Future<void> Function() action, {
+  String? success,
+}) async {
+  try {
+    await action();
+    if (context.mounted && success != null) showMessage(context, success);
+    return true;
+  } catch (e) {
+    if (context.mounted) showMessage(context, e.toString());
+    return false;
+  }
+}
+
+class AsyncParkButton extends StatefulWidget {
+  const AsyncParkButton(
+    this.label, {
+    super.key,
+    required this.action,
+    this.onSuccess,
+  });
+  final String label;
+  final Future<void> Function() action;
+  final VoidCallback? onSuccess;
+  @override
+  State<AsyncParkButton> createState() => _AsyncParkButtonState();
+}
+
+class _AsyncParkButtonState extends State<AsyncParkButton> {
+  bool busy = false;
+  @override
+  Widget build(BuildContext context) => ParkButton(
+    busy ? 'Đang xử lý…' : widget.label,
+    onPressed:
+        busy
+            ? null
+            : () async {
+              setState(() => busy = true);
+              final success = await runAction(context, widget.action);
+              if (!mounted) return;
+              setState(() => busy = false);
+              if (success) widget.onSuccess?.call();
+            },
+  );
+}

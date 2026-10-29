@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useEffect, useId, useRef } from "react";
+import { createContext, useContext, useEffect, useId, useRef } from "react";
 import type { ReactNode, ButtonHTMLAttributes } from "react";
 import dimensions from "../data/asset-dimensions.json";
 export const FrameContext = createContext("30:5");
@@ -269,50 +269,6 @@ export function Progress({
       aria-valuenow={value}
     >
       <span style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
-    </div>
-  );
-}
-export function BarChart({ revenue = false }: { revenue?: boolean }) {
-  const labels = revenue
-    ? ["Th5", "Th6", "Th7", "Th8", "Th9", "Th10"]
-    : ["T6", "T7", "CN", "T2", "T3", "T4", "T5"];
-  const values = revenue
-    ? [137, 161, 178, 191, 208, 247]
-    : [59, 91, 72, 124, 98, 139, 160];
-  return (
-    <div
-      className={`bar-chart ${revenue ? "revenue-chart" : ""}`}
-      role="img"
-      aria-label={
-        revenue
-          ? "Doanh thu demo từ tháng 5 đến tháng 10"
-          : "Lượt xe demo trong 7 ngày gần nhất"
-      }
-    >
-      <div className="y-axis">
-        {(revenue ? [300, 225, 150, 75] : [180, 135, 90, 45]).map((n) => (
-          <span key={n}>{n}</span>
-        ))}
-      </div>
-      <div className="plot">
-        <div className="chart-grid">
-          {[0, 1, 2, 3].map((n) => (
-            <span key={n} />
-          ))}
-        </div>
-        <div className="bars">
-          {values.map((v, i) => (
-            <div key={labels[i]} className="bar-column">
-              <div
-                title={`${labels[i]}: ${v}${revenue ? " triệu đồng" : " lượt xe"}`}
-                className={`bar ${i === values.length - 1 ? "latest" : ""}`}
-                style={{ height: `${(v / (revenue ? 300 : 180)) * 100}%` }}
-              />
-              <span>{labels[i]}</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

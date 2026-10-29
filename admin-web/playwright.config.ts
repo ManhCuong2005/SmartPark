@@ -7,13 +7,13 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://127.0.0.1:5173",
-    channel: "chrome",
+    channel: process.env.CI ? undefined : "chrome",
     headless: true,
     viewport: { width: 1440, height: 900 },
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm.cmd run dev",
+    command: process.platform === "win32" ? "npm.cmd run dev" : "npm run dev",
     url: "http://127.0.0.1:5173",
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
