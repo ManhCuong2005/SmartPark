@@ -131,7 +131,7 @@ class TimeSelectionScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: ParkColors.mutedText,
+                          color: ParkColors.muted,
                         ),
                       ),
                       for (final h in [1, 2, 4, 8])
