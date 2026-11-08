@@ -52,25 +52,22 @@ jobs:
           mkdir -p release_apks
           TAG_NAME="${{ github.ref_name }}"
           if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ]; then
-            TAG_NAME="v1.0.0"
+            TAG_NAME="v1.1.0"
           fi
           
-          # Customer APKs (arm64-v8a cho máy đời mới, tối ưu giảm hơn 60% dung lượng)
-          if [ -f build/app/outputs/flutter-apk/app-customer-arm64-v8a-release.apk ]; then
-            cp build/app/outputs/flutter-apk/app-customer-arm64-v8a-release.apk release_apks/smartpark-${TAG_NAME}-customer-arm64.apk
-          elif [ -f build/app/outputs/flutter-apk/app-customer-release.apk ]; then
-            cp build/app/outputs/flutter-apk/app-customer-release.apk release_apks/smartpark-${TAG_NAME}-customer.apk
-          fi
+          echo "=== Build output directory contents ==="
+          ls -la build/app/outputs/flutter-apk/ || true
 
-          # Staff APKs
-          if [ -f build/app/outputs/flutter-apk/app-staff-arm64-v8a-release.apk ]; then
-            cp build/app/outputs/flutter-apk/app-staff-arm64-v8a-release.apk release_apks/smartpark-${TAG_NAME}-staff-arm64.apk
-          elif [ -f build/app/outputs/flutter-apk/app-staff-release.apk ]; then
-            cp build/app/outputs/flutter-apk/app-staff-release.apk release_apks/smartpark-${TAG_NAME}-staff.apk
-          fi
-          
-          echo "=== Release APK Artifacts ==="
-          ls -lh release_apks/
+          # Copy tất cả các file apk build được vào thư mục release_apks
+          for file in build/app/outputs/flutter-apk/*.apk; do
+            if [ -f "$file" ]; then
+              base=$(basename "$file")
+              cp "$file" "release_apks/smartpark-${TAG_NAME}-${base}"
+            fi
+          done
+
+          echo "=== Release APK Artifacts to upload ==="
+          ls -la release_apks/
 
       - name: Create GitHub Release & Upload APKs
         uses: softprops/action-gh-release@v2
