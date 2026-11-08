@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../../../domain/vietqr_service.dart';
 import '../../park_controller.dart';
 import '../../../shared/widgets/park_widgets.dart';
 
@@ -121,6 +122,59 @@ class TicketScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (b['status'] == 'parked' || (b['status'] == 'completed' && b['amount'] != null && (b['amount'] as int) > 0))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 18),
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.qr_code_2),
+                      label: const Text('Thanh toán qua VietQR'),
+                      onPressed: () {
+                        final amount = b['amount'] as int? ?? 15000;
+                        final qrUrl = VietQrHelper.generateQuickQrUrl(
+                          bankBin: '970436',
+                          accountNo: '3333530787',
+                          amount: amount,
+                          description: 'SMARTPARK ${b['plate']}',
+                          accountName: 'SMARTPARK OPERATOR',
+                        );
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Quét mã VietQR chuyển khoản'),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Image.network(
+                                  qrUrl,
+                                  loadingBuilder: (c, child, progress) {
+                                    if (progress == null) return child;
+                                    return const Padding(
+                                      padding: EdgeInsets.all(32),
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  },
+                                  errorBuilder: (c, err, stack) => const Text(
+                                    'Không tải được mã VietQR. Vui lòng thanh toán tiền mặt.',
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Số tiền: ${money(amount)}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Đóng'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 if (b['status'] == 'confirmed')
                   Padding(
                     padding: const EdgeInsets.only(top: 18),

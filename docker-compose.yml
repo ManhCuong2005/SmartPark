@@ -1,0 +1,34 @@
+# Docker Compose cho môi trường phát triển Supabase Cục bộ (Local Dev)
+version: '3.8'
+
+services:
+  db:
+    image: supabase/postgres:15.1.0.117
+    container_name: smartpark-supabase-db
+    ports:
+      - "54322:5432"
+    environment:
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: postgres
+    volumes:
+      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rest:
+    image: postgrest/postgrest:v11.2.0
+    container_name: smartpark-postgrest
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      PGRST_DB_URI: postgres://postgres:postgrespassword@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_OPENAPI_SERVER_PROXY_URI: http://localhost:3000
+
