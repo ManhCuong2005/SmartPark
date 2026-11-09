@@ -500,22 +500,24 @@ class StaffSlotsScreen extends StatelessWidget {
                                     ),
                                     tooltip: 'Hủy vé No-show',
                                     onPressed: () async {
-                                      if (await confirmAction(
+                                      final confirmed = await confirmAction(
                                         context,
                                         'Hủy vé này do khách quá hẹn 1 tiếng không đến?',
-                                      )) {
-                                        await repository.cancelBooking(b);
+                                      );
+                                      if (confirmed && context.mounted) {
+                                        await runAction(context, () => repository.cancelBooking(b));
                                       }
                                     },
                                   )
                                   : const Icon(Icons.login),
                           onTap: () async {
                             if (isOverdue) {
-                              if (await confirmAction(
+                              final confirmed = await confirmAction(
                                 context,
                                 'Hủy vé này do khách quá hẹn 1 tiếng không đến?',
-                              )) {
-                                await repository.cancelBooking(b);
+                              );
+                              if (confirmed && context.mounted) {
+                                await runAction(context, () => repository.cancelBooking(b));
                               }
                             } else {
                               if (await runAction(
