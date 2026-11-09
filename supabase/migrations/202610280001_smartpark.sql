@@ -184,7 +184,11 @@ begin
    raise exception 'LOT_UNAVAILABLE'; end if;
  return coalesce((select jsonb_agg(jsonb_build_object('id',s.id,'code',s.code,'lot_id',s.lot_id,
   'enabled',s.enabled,'occupied',not s.enabled or exists(select 1 from public.bookings b where b.slot_id=s.id
-  and (b.status='parked' or (b.status='confirmed' and tstzrange(b.starts_at,b.ends_at,'[)') && tstzrange(p_start,p_end,'[)')))))
+  and (
+    (b.status='confirmed' and tstzrange(b.starts_at, b.ends_at, '[)') && tstzrange(p_start, p_end, '[)'))
+    or
+    (b.status='parked' and tstzrange(b.starts_at, greatest(b.ends_at, now()), '[)') && tstzrange(p_start, p_end, '[)'))
+  ))))
   order by s.code) from public.parking_slots s where s.lot_id=p_lot_id),'[]');
 end $$;
 
@@ -216,6 +220,7 @@ declare
  actor uuid:=auth.uid(); previous public.operation_receipts; result jsonb;
  b public.bookings; v public.vehicles; s public.parking_slots; l public.parking_lots;
  item_id uuid; observed timestamptz; rate integer; minutes integer; fee integer;
+ new_end timestamptz;
 begin
  if actor is null then raise exception 'AUTH_REQUIRED' using errcode='42501'; end if;
  perform pg_advisory_xact_lock(hashtextextended(actor::text||p_operation_id::text,0));
@@ -236,7 +241,11 @@ begin
      or (p_payload->>'ends_at')::timestamptz <= (p_payload->>'starts_at')::timestamptz
      or (p_payload->>'ends_at')::timestamptz-(p_payload->>'starts_at')::timestamptz>interval '7 days'
      then raise exception 'INVALID_TIME'; end if;
-   if exists(select 1 from public.bookings where slot_id=s.id and status='parked') then raise exception 'SLOT_UNAVAILABLE'; end if;
+   if exists(
+     select 1 from public.bookings cur
+     where cur.slot_id=s.id and cur.status='parked'
+     and tstzrange(cur.starts_at, greatest(cur.ends_at, now()), '[)') && tstzrange((p_payload->>'starts_at')::timestamptz, (p_payload->>'ends_at')::timestamptz, '[)')
+   ) then raise exception 'SLOT_UNAVAILABLE'; end if;
    rate:=case when v.kind='motorcycle' then l.motorcycle_rate else l.car_rate end;
    insert into public.bookings(id,customer_id,vehicle_id,lot_id,slot_id,plate,starts_at,ends_at,hourly_rate,free_minutes)
    values(item_id,actor,v.id,l.id,s.id,v.plate,(p_payload->>'starts_at')::timestamptz,
@@ -247,7 +256,7 @@ begin
    select * into b from public.bookings where id=(p_payload->>'booking_id')::uuid for update;
    if not found then raise exception 'TICKET_NOT_FOUND'; end if;
    if p_kind='booking.cancel' then
-     if b.customer_id<>actor and not public.owns_lot(b.lot_id) then raise exception 'FORBIDDEN' using errcode='42501'; end if;
+     if b.customer_id<>actor and not public.owns_lot(b.lot_id) and not (public.works_lot(b.lot_id) and now() >= b.starts_at + interval '1 hour') then raise exception 'FORBIDDEN' using errcode='42501'; end if;
    else
      if not public.works_lot(b.lot_id) then raise exception 'FORBIDDEN' using errcode='42501'; end if;
      if p_payload->>'qr_token' is distinct from b.qr_token then raise exception 'INVALID_QR'; end if;
@@ -264,9 +273,24 @@ begin
      if regexp_replace(upper(p_payload->>'plate'),'[^A-Z0-9]','','g') is distinct from b.plate then raise exception 'PLATE_MISMATCH'; end if;
      perform 1 from public.parking_slots where id=b.slot_id for update;
      if p_kind='staff.check_in' then
-       if b.status<>'confirmed' or observed<b.starts_at-interval '15 minutes' or observed>=b.ends_at then raise exception 'INVALID_STATE'; end if;
+       if b.status<>'confirmed' or observed<b.starts_at-interval '15 minutes' or observed>b.starts_at+interval '1 hour' then
+         raise exception 'INVALID_STATE';
+       end if;
        if not exists(select 1 from public.parking_slots where id=b.slot_id and enabled) then raise exception 'SLOT_UNAVAILABLE'; end if;
-       update public.bookings set status='parked',checked_in_at=observed,version=version+1 where id=b.id returning * into b;
+       if observed >= b.ends_at then
+         new_end := observed + interval '1 hour';
+         if exists(
+           select 1 from public.bookings other
+           where other.slot_id = b.slot_id and other.id <> b.id
+           and other.status in ('confirmed', 'parked')
+           and tstzrange(other.starts_at, other.ends_at, '[)') && tstzrange(observed, new_end, '[)')
+         ) then
+           raise exception 'SLOT_UNAVAILABLE';
+         end if;
+         update public.bookings set status='parked', checked_in_at=observed, ends_at=new_end, version=version+1 where id=b.id returning * into b;
+       else
+         update public.bookings set status='parked', checked_in_at=observed, version=version+1 where id=b.id returning * into b;
+       end if;
      else
        if b.status<>'parked' or observed<b.checked_in_at then raise exception 'INVALID_STATE'; end if;
        minutes:=ceil(extract(epoch from (observed-b.checked_in_at))/60);

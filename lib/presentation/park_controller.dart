@@ -286,6 +286,14 @@ class ParkController extends ChangeNotifier {
       final next = await backend.availability(id, startTime, endTime);
       if (lot.id == id && startsAt == startTime && endsAt == endTime) {
         availabilityRows = next;
+        if (selectedSlotId != null &&
+            next.any(
+              (s) =>
+                  s['id'] == selectedSlotId &&
+                  (s['occupied'] == true || s['enabled'] == false),
+            )) {
+          selectedSlotId = null;
+        }
         // Persist availability with the scoped snapshot for offline reading.
         snapshot = ParkingSnapshot({
           ...snapshot.data,

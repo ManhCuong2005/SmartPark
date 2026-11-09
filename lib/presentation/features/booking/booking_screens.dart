@@ -143,9 +143,10 @@ class SlotSelectionScreen extends StatelessWidget {
       child: ParkButton(
         'Tiếp tục',
         onPressed:
-            repository.slot.isEmpty
+            (repository.slot.isEmpty ||
+                    repository.occupied.contains(repository.slot))
                 ? null
-                : () => Navigator.pushNamed(context, '/booking/time'),
+                : () => Navigator.pushNamed(context, '/booking/confirm'),
       ),
     ),
     child: Column(
@@ -153,7 +154,8 @@ class SlotSelectionScreen extends StatelessWidget {
       children: [
         PageHeading(
           'Chọn chỗ đỗ',
-          subtitle: '${repository.lot.name} · Tầng 1',
+          subtitle:
+              '${repository.lot.name} · ${displayDate(repository.date)} ${clock(repository.start)} - ${clock(repository.end)}',
           screen: '16:7',
         ),
         Padding(
@@ -166,7 +168,14 @@ class SlotSelectionScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Txt(
-                        '01 Chọn chỗ',
+                        '01 Thời gian',
+                        size: 11,
+                        color: ParkColors.muted,
+                      ),
+                    ),
+                    Expanded(
+                      child: Txt(
+                        '02 Chọn chỗ',
                         size: 11,
                         color: ParkColors.blue,
                         weight: FontWeight.w600,
@@ -174,14 +183,7 @@ class SlotSelectionScreen extends StatelessWidget {
                     ),
                     Expanded(
                       child: Txt(
-                        '02 Thời gian',
-                        size: 11,
-                        color: ParkColors.muted,
-                      ),
-                    ),
-                    Expanded(
-                      child: Txt(
-                        '03 Thanh toán',
+                        '03 Xác nhận',
                         size: 11,
                         color: ParkColors.muted,
                       ),

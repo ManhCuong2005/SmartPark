@@ -11,6 +11,9 @@ Trong SQL Editor của project phát triển SmartPark, chạy theo thứ tự:
 2. `supabase/migrations/202610280002_reservation_hardening.sql` bổ sung chống một
    phương tiện đặt nhiều vị trí trong cùng khoảng giờ và phát tín hiệu cập nhật
    chỗ trống công khai mà không lộ thông tin vé của khách khác.
+3. `supabase/migrations/202610280003_fix_booking_flow_and_availability.sql` khắc phục
+   lỗi kiểm tra bận theo khoảng thời gian thực tế cho phép đặt chỗ trước tương lai,
+   và cho phép nhân viên check-in linh hoạt khi khách đến muộn sau giờ ends_at.
 
 Mỗi migration chỉ chạy một lần. Không chạy lại 001 nếu đã thành công. Không chạy
 `supabase/tests/bootstrap.sql` hoặc `behavior.sql` trên Cloud; đó là fixture test.

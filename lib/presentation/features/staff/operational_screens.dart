@@ -397,6 +397,23 @@ class StaffSlotsScreen extends StatelessWidget {
                     },
                   ),
                 const SizedBox(height: 20),
+                const SizedBox(height: 16),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Txt(
+                    'Xe đang trong bãi',
+                    size: 16,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (repository.parked
+                    .where((b) => b['lot_id'] == repository.lot.id)
+                    .isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('Không có xe trong bãi.'),
+                  ),
                 for (final b in repository.parked.where(
                   (b) => b['lot_id'] == repository.lot.id,
                 ))
@@ -423,6 +440,104 @@ class StaffSlotsScreen extends StatelessWidget {
                       },
                     ),
                   ),
+                const SizedBox(height: 20),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Txt(
+                    'Xe đã đặt trước / Sắp đến',
+                    size: 16,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (final b in repository.bookings.where(
+                  (b) =>
+                      b['lot_id'] == repository.lot.id &&
+                      b['status'] == 'confirmed',
+                )) ...[
+                  Builder(
+                    builder: (context) {
+                      final startsAt = DateTime.parse(
+                        b['starts_at'] as String,
+                      );
+                      final isOverdue = DateTime.now().isAfter(
+                        startsAt.add(const Duration(hours: 1)),
+                      );
+                      return ParkCard(
+                        child: ListTile(
+                          title: Row(
+                            children: [
+                              Text(b['plate'] as String),
+                              const SizedBox(width: 8),
+                              if (isOverdue)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'Quá hẹn 1h (No-show)',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.red.shade800,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          subtitle: Text('Hẹn vào lúc ${startsAt.toLocal()}'),
+                          trailing:
+                              isOverdue
+                                  ? IconButton(
+                                    icon: const Icon(
+                                      Icons.cancel_outlined,
+                                      color: Colors.red,
+                                    ),
+                                    tooltip: 'Hủy vé No-show',
+                                    onPressed: () async {
+                                      if (await confirmAction(
+                                        context,
+                                        'Hủy vé này do khách quá hẹn 1 tiếng không đến?',
+                                      )) {
+                                        await repository.cancelBooking(b);
+                                      }
+                                    },
+                                  )
+                                  : const Icon(Icons.login),
+                          onTap: () async {
+                            if (isOverdue) {
+                              if (await confirmAction(
+                                context,
+                                'Hủy vé này do khách quá hẹn 1 tiếng không đến?',
+                              )) {
+                                await repository.cancelBooking(b);
+                              }
+                            } else {
+                              if (await runAction(
+                                    context,
+                                    () => repository.openTicket(
+                                      TicketIdentity(
+                                        b['id'] as String,
+                                        b['qr_token'] as String,
+                                      ).encoded,
+                                    ),
+                                  ) &&
+                                  context.mounted) {
+                                Navigator.pushNamed(context, '/staff/confirm');
+                              }
+                            }
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                ],
               ],
             ),
           ),

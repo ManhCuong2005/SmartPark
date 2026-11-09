@@ -49,7 +49,12 @@ class TimeSelectionScreen extends StatelessWidget {
         onPressed:
             repository.durationMinutes <= 0
                 ? null
-                : () => Navigator.pushNamed(context, '/booking/confirm'),
+                : () async {
+                    await repository.loadAvailability();
+                    if (context.mounted) {
+                      Navigator.pushNamed(context, '/booking/slots');
+                    }
+                  },
       ),
     ),
     child: Column(
@@ -62,6 +67,36 @@ class TimeSelectionScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 22),
           child: Column(
             children: [
+              const ParkCard(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Txt(
+                        '01 Thời gian',
+                        size: 11,
+                        color: ParkColors.blue,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                    Expanded(
+                      child: Txt(
+                        '02 Chọn chỗ',
+                        size: 11,
+                        color: ParkColors.muted,
+                      ),
+                    ),
+                    Expanded(
+                      child: Txt(
+                        '03 Xác nhận',
+                        size: 11,
+                        color: ParkColors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
               ParkCard(
                 child: Column(
                   children: [
@@ -189,6 +224,36 @@ class BookingConfirmationScreen extends StatelessWidget {
           padding: const EdgeInsets.all(22),
           child: Column(
             children: [
+              const ParkCard(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Txt(
+                        '01 Thời gian',
+                        size: 11,
+                        color: ParkColors.muted,
+                      ),
+                    ),
+                    Expanded(
+                      child: Txt(
+                        '02 Chọn chỗ',
+                        size: 11,
+                        color: ParkColors.muted,
+                      ),
+                    ),
+                    Expanded(
+                      child: Txt(
+                        '03 Xác nhận',
+                        size: 11,
+                        color: ParkColors.blue,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
               ParkCard(
                 child: Column(
                   children: [
