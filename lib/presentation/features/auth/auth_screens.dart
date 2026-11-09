@@ -291,7 +291,7 @@ class _AuthScreenState extends State<AuthScreen> {
       _password = TextEditingController(),
       _name = TextEditingController(),
       _phone = TextEditingController();
-  bool obscure = true, agreed = true;
+  bool obscure = true, agreed = true, resendingConfirmation = false;
   @override
   void dispose() {
     for (final c in [_email, _password, _name, _phone]) {
@@ -380,6 +380,26 @@ class _AuthScreenState extends State<AuthScreen> {
       widget.staff ? '/staff/home' : '/home',
       (r) => false,
     );
+  }
+
+  Future<void> resendConfirmation() async {
+    if (resendingConfirmation) return;
+    final email = _email.text.trim();
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      showMessage(
+        context,
+        'Nhập địa chỉ email hợp lệ để gửi lại email xác nhận.',
+      );
+      return;
+    }
+    setState(() => resendingConfirmation = true);
+    await runAction(
+      context,
+      () => widget.repository.resendConfirmationEmail(email),
+      success:
+          'Nếu tài khoản cần xác nhận, email hướng dẫn đã được gửi. Hãy kiểm tra hộp thư đến và thư rác.',
+    );
+    if (mounted) setState(() => resendingConfirmation = false);
   }
 
   @override
@@ -614,6 +634,22 @@ class _AuthScreenState extends State<AuthScreen> {
                   ParkButton(
                     reg ? 'Tạo tài khoản' : 'Đăng nhập',
                     onPressed: widget.repository.loading ? null : submit,
+                  ),
+                  TextButton(
+                    onPressed:
+                        resendingConfirmation ? null : resendConfirmation,
+                    child:
+                        resendingConfirmation
+                            ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : const Txt(
+                              'Chưa nhận email xác nhận? Gửi lại',
+                              size: 12,
+                              color: ParkColors.blue,
+                              weight: FontWeight.w600,
+                            ),
                   ),
                   if (!reg && !staff) ...[
                     const SizedBox(height: 18),

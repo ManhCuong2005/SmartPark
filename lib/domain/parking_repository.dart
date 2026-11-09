@@ -8,6 +8,7 @@ abstract interface class ParkingRepository {
   Future<void> signIn(String email, String password);
   Future<void> signOut();
   Future<void> resetPassword(String email);
+  Future<void> resendConfirmationEmail(String email);
   Future<ParkingSnapshot?> cachedSnapshot();
   Future<ParkingSnapshot> refresh();
   Future<List<Json>> availability(String lotId, DateTime start, DateTime end);
