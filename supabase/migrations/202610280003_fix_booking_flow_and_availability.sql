@@ -35,7 +35,7 @@ begin
       or
       (b.status='parked' and tstzrange(b.starts_at, greatest(b.ends_at, now()), '[)') && tstzrange(p_start, p_end, '[)'))
     )
-  )))
+  ))
   order by s.code) from public.parking_slots s where s.lot_id=p_lot_id),'[]');
 end $$;
 
