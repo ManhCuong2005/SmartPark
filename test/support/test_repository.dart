@@ -155,6 +155,8 @@ class TestRepository implements ParkingRepository {
   @override
   Future<void> resetPassword(String email) async {}
   @override
+  Future<void> resendConfirmationEmail(String email) async {}
+  @override
   Future<void> signOut() async {
     loggedIn = false;
   }
