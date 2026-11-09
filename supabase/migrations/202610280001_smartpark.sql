@@ -185,7 +185,7 @@ begin
  return coalesce((select jsonb_agg(jsonb_build_object('id',s.id,'code',s.code,'lot_id',s.lot_id,
   'enabled',s.enabled,'occupied',not s.enabled or exists(select 1 from public.bookings b where b.slot_id=s.id
   and (
-    (b.status='confirmed' and tstzrange(b.starts_at, b.ends_at, '[)') && tstzrange(p_start, p_end, '[)'))
+    (b.status='confirmed' and now() < b.starts_at + interval '1 hour' and tstzrange(b.starts_at, b.ends_at, '[)') && tstzrange(p_start, p_end, '[)'))
     or
     (b.status='parked' and tstzrange(b.starts_at, greatest(b.ends_at, now()), '[)') && tstzrange(p_start, p_end, '[)'))
   ))))

@@ -18,23 +18,20 @@ begin
  return v_count;
 end $$;
 
--- 2. Tối ưu hàm slot_availability: Dọn dẹp vé no-show và chỉ tính bận nếu trùng khung giờ thực tế
+-- 2. Tối ưu hàm slot_availability: Chỉ tính bận nếu khoảng thời gian thực tế bị trùng lắp
 create or replace function public.slot_availability(p_lot_id uuid, p_start timestamptz, p_end timestamptz)
-returns jsonb language plpgsql security definer set search_path='' as $$
+returns jsonb language plpgsql stable security definer set search_path='' as $$
 begin
  if auth.uid() is null then raise exception 'AUTH_REQUIRED' using errcode='42501'; end if;
  if p_end<=p_start or p_end-p_start>interval '7 days' then raise exception 'INVALID_TIME'; end if;
  if not exists(select 1 from public.parking_lots where id=p_lot_id and (enabled or public.works_lot(id))) then
    raise exception 'LOT_UNAVAILABLE'; end if;
 
- -- Tự động dọn vé no-show quá 1 tiếng để giải phóng ô ngay lập tức
- perform public.cancel_no_shows(p_lot_id);
-
  return coalesce((select jsonb_agg(jsonb_build_object('id',s.id,'code',s.code,'lot_id',s.lot_id,
   'enabled',s.enabled,'occupied',not s.enabled or exists(
     select 1 from public.bookings b where b.slot_id=s.id
     and (
-      (b.status='confirmed' and tstzrange(b.starts_at, b.ends_at, '[)') && tstzrange(p_start, p_end, '[)'))
+      (b.status='confirmed' and now() < b.starts_at + interval '1 hour' and tstzrange(b.starts_at, b.ends_at, '[)') && tstzrange(p_start, p_end, '[)'))
       or
       (b.status='parked' and tstzrange(b.starts_at, greatest(b.ends_at, now()), '[)') && tstzrange(p_start, p_end, '[)'))
     )
@@ -54,6 +51,7 @@ declare
  new_end timestamptz;
 begin
  if actor is null then raise exception 'AUTH_REQUIRED' using errcode='42501'; end if;
+ perform public.cancel_no_shows();
  perform pg_advisory_xact_lock(hashtextextended(actor::text||p_operation_id::text,0));
  select * into previous from public.operation_receipts where actor_id=actor and operation_id=p_operation_id;
  if found then
