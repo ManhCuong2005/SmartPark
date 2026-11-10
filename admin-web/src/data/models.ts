@@ -55,6 +55,7 @@ export type Slot = {
   enabled: boolean;
   occupied: boolean;
 };
+export type Incident = { id: string; lotId: string; reporter: string; bookingId: string | null; category: string; description: string; status: "open" | "in_progress" | "resolved"; resolution: string; createdAt: string; updatedAt: string };
 export type AdminData = {
   lots: Lot[];
   bookings: Booking[];
@@ -63,6 +64,7 @@ export type AdminData = {
   payments: Payment[];
   slots: Slot[];
   vehicles: Row[];
+  incidents: Incident[];
 };
 export const emptyData: AdminData = {
   lots: [],
@@ -72,6 +74,7 @@ export const emptyData: AdminData = {
   payments: [],
   slots: [],
   vehicles: [],
+  incidents: [],
 };
 export const money = (n: number) =>
   new Intl.NumberFormat("vi-VN").format(n) + "đ";

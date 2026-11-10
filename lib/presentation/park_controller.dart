@@ -220,6 +220,8 @@ class ParkController extends ChangeNotifier {
   }
 
   List<Json> get notifications => snapshot.rows('notifications');
+  Future<Json> reportIncident(String lotId, String? bookingId, String category, String description) =>
+      backend.reportIncident(lotId, bookingId, category, description);
   List<Json> get parked =>
       bookings.where((b) => b['status'] == 'parked').toList();
   String get freshness =>
