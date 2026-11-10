@@ -13,6 +13,7 @@ abstract interface class ParkingRepository {
   Future<ParkingSnapshot> refresh();
   Future<List<Json>> availability(String lotId, DateTime start, DateTime end);
   Future<Json> execute(String id, String kind, Json payload);
+  Future<Json> reportIncident(String lotId, String? bookingId, String category, String description);
   Future<void> enqueue(PendingOperation operation);
   Future<List<PendingOperation>> pending();
   Future<void> discard(String id);

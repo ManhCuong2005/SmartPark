@@ -107,6 +107,13 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
     vehicles: (raw.vehicles ?? []).filter((v) =>
       bookings.some((b) => b.vehicle_id === v.id),
     ),
+    incidents: (raw.incidents ?? []).filter((i) => ids.has(i.lot_id)).map((i) => ({
+      id: String(i.id), lotId: String(i.lot_id),
+      reporter: String(profiles.find((p) => p.id === i.reporter_id)?.name ?? "Nhân viên"),
+      bookingId: i.booking_id == null ? null : String(i.booking_id), category: String(i.category),
+      description: String(i.description), status: i.status as "open" | "in_progress" | "resolved",
+      resolution: String(i.resolution ?? ""), createdAt: String(i.created_at), updatedAt: String(i.updated_at),
+    })),
   };
 }
 export function AdminProvider({ children }: { children: ReactNode }) {
@@ -192,6 +199,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       "vehicles",
       "payments",
       "notifications",
+      "incident_reports",
     ]) {
       channel.on(
         "postgres_changes",

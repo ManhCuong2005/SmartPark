@@ -15,6 +15,7 @@ const BookingsPage = lazy(() =>
 const StaffPage = lazy(() =>
   import("./features/operations").then((m) => ({ default: m.StaffPage })),
 );
+const IncidentsPage = lazy(() => import("./features/incidents").then((m) => ({ default: m.IncidentsPage })));
 const ReportsPage = lazy(() =>
   import("./features/reports-settings").then((m) => ({
     default: m.ReportsPage,
@@ -52,6 +53,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="parking" element={<ParkingPage />} />
             <Route path="bookings" element={<BookingsPage />} />
             <Route path="staff" element={<StaffPage />} />
+            <Route path="incidents" element={<IncidentsPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

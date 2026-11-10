@@ -209,6 +209,19 @@ class StaffHomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
               ],
+              ParkCard(
+                onTap: () => Navigator.pushNamed(context, '/staff/incidents'),
+                padding: const EdgeInsets.all(16),
+                child: const Row(children: [
+                  Icon(Icons.report_problem_outlined, color: Colors.deepOrange),
+                  SizedBox(width: 14),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Txt('Báo cáo sự cố', size: 17, weight: FontWeight.w700),
+                    SizedBox(height: 6), Txt('Ghi nhận xe sai ô, vé không khớp hoặc sự cố khác', size: 12, color: ParkColors.muted),
+                  ])), Icon(Icons.chevron_right),
+                ]),
+              ),
+              const SizedBox(height: 14),
               const SizedBox(height: 9),
               ParkCard(
                 color: Color(0xFFFFF6E7),

@@ -2147,3 +2147,9 @@ td small {
     justify-content: space-between;
   }
 }
+.incident-dialog-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: #101b2b80; }
+.incident-dialog { width: min(560px, 100%); padding: 24px; display: grid; gap: 16px; }
+.incident-dialog label { display: grid; gap: 8px; }
+.incident-dialog textarea { min-height: 110px; resize: vertical; }
+.incident-dialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.incident-metrics { margin: 20px 0; }

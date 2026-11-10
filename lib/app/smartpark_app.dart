@@ -9,6 +9,7 @@ import '../presentation/features/booking/booking_screens.dart';
 import '../presentation/features/tickets/ticket_screens.dart';
 import '../presentation/features/account/account_screens.dart';
 import '../presentation/features/staff/staff_screens.dart';
+import '../presentation/features/staff/incident_screen.dart';
 
 class SmartParkApp extends ConsumerWidget {
   const SmartParkApp({super.key, this.staff = false, this.initialRoute});
@@ -139,6 +140,7 @@ class SmartParkApp extends ConsumerWidget {
               StaffSlotsScreen(repository: repository),
               staffOnly: true,
             ),
+        '/staff/incidents': (_) => guard(StaffIncidentScreen(repository: repository), staffOnly: true),
         '/staff/account':
             (_) => guard(
               StaffAccountScreen(repository: repository),

@@ -164,6 +164,16 @@ class SupabaseParkingRepository implements ParkingRepository {
   }
 
   @override
+  Future<Json> reportIncident(String lotId, String? bookingId, String category, String description) async {
+    try {
+      return Map<String, dynamic>.from(await client.rpc('report_incident', params: {
+        'p_lot_id': lotId, 'p_booking_id': bookingId, 'p_category': category,
+        'p_description': description,
+      }).timeout(const Duration(seconds: 12)) as Map);
+    } catch (e) { throw translate(e); }
+  }
+
+  @override
   Future<void> enqueue(PendingOperation operation) async {
     if (userId == null || operation.userId != userId) {
       throw const ParkFailure('Vui lòng đăng nhập lại.');
@@ -237,6 +247,7 @@ class SupabaseParkingRepository implements ParkingRepository {
       'bookings',
       'payments',
       'notifications',
+      'incident_reports',
       'favorites',
     ]) {
       _channel!.onPostgresChanges(
