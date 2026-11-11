@@ -5,17 +5,33 @@ String normalizePlate(String text) =>
 bool isValidPlate(String text) =>
     RegExp(r'^[0-9]{2}[A-Z]{1,2}[0-9]{4,6}$').hasMatch(normalizePlate(text));
 
-/// Candidate extraction deliberately avoids guessing O/0 or I/1 in noisy OCR.
+/// Candidate extraction with improved support for Vietnamese plates (single-line & multi-line).
 List<String> plateCandidates(String text) {
-  final matches = RegExp(
+  final cleanText = text.replaceAll('\r', '\n');
+  final candidates = <String>{};
+
+  // 1. Khớp các biển số có format thông thường (dấu gạch ngang, chấm, khoảng trắng)
+  final standardMatches = RegExp(
     r'\b\d{2}\s*[-.]?\s*[A-Z]{1,2}\s*[-.]?\s*\d?\s*[-.\s]?\s*\d{2,3}\s*[.\s]?\s*\d{2}\b',
     caseSensitive: false,
-  ).allMatches(text.replaceAll('\r', '\n'));
-  return matches
-      .map((m) => normalizePlate(m.group(0)!))
-      .where(isValidPlate)
-      .toSet()
-      .toList();
+  ).allMatches(cleanText);
+  for (final m in standardMatches) {
+    final norm = normalizePlate(m.group(0)!);
+    if (isValidPlate(norm)) candidates.add(norm);
+  }
+
+  // 2. Hỗ trợ biển số xe máy 2 dòng thường gặp (ví dụ: dòng 1 "29-V1", dòng 2 "123.45")
+  final lines = cleanText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+  for (var i = 0; i < lines.length - 1; i++) {
+    final line1 = normalizePlate(lines[i]);
+    final line2 = normalizePlate(lines[i + 1]);
+    final combined = '$line1$line2';
+    if (isValidPlate(combined)) {
+      candidates.add(combined);
+    }
+  }
+
+  return candidates.toList();
 }
 
 int calculateFee(

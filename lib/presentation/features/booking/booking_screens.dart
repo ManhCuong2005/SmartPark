@@ -8,12 +8,14 @@ class SlotGrid extends StatelessWidget {
     super.key,
     required this.selected,
     required this.occupied,
+    this.recentlyReserved = const {},
     required this.onSelect,
     this.staff = false,
     this.codes = const [],
   });
   final String selected;
   final Set<String> occupied;
+  final Set<String> recentlyReserved;
   final ValueChanged<String> onSelect;
   final bool staff;
   final List<String> codes;
@@ -59,18 +61,22 @@ class SlotGrid extends StatelessWidget {
           ),
           itemBuilder: (context, i) {
             final slot = codes[i];
-            final used = occupied.contains(slot), active = selected == slot;
+            final used = occupied.contains(slot),
+                recent = recentlyReserved.contains(slot),
+                active = selected == slot;
             return Semantics(
-              label: 'Ô $slot${used ? ' đang dùng' : ' còn trống'}',
+              label: 'Ô $slot${used ? (recent ? ' đang giữ chỗ' : ' đã đặt') : ' còn trống'}',
               selected: active,
               button: true,
               child: Material(
                 color:
                     active
                         ? ParkColors.blue
+                        : recent
+                        ? const Color(0xFFFFF3CD) // Màu vàng nhẹ khi đang giữ chỗ
                         : used
-                        ? const Color(0xFFE5EAF0)
-                        : ParkColors.paleGreen,
+                        ? const Color(0xFFE5EAF0) // Màu xám khi đã đặt/bận
+                        : ParkColors.paleGreen, // Màu xanh khi còn trống
                 borderRadius: BorderRadius.circular(9),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(9),
@@ -83,6 +89,8 @@ class SlotGrid extends StatelessWidget {
                       color:
                           active
                               ? Colors.white
+                              : recent
+                              ? const Color(0xFF856404) // Chữ vàng đậm
                               : used
                               ? ParkColors.muted
                               : ParkColors.green,
@@ -103,34 +111,35 @@ class SlotLegend extends StatelessWidget {
   const SlotLegend({super.key, this.staff = false});
   final bool staff;
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: List.generate(
-      3,
-      (i) => Row(
-        children: [
-          Container(
-            width: 17,
-            height: 16,
-            decoration: BoxDecoration(
-              color:
-                  [
-                    ParkColors.paleGreen,
-                    const Color(0xFFE5EAF0),
-                    ParkColors.blue,
-                  ][i],
-              borderRadius: BorderRadius.circular(5),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Txt(
-            ['Còn trống', staff ? 'Đang dùng' : 'Đã đặt', 'Đang chọn'][i],
-            size: 11,
-            color: ParkColors.muted,
-          ),
-        ],
-      ),
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      children: [
+        _legendItem(ParkColors.paleGreen, 'Còn trống'),
+        const SizedBox(width: 14),
+        _legendItem(const Color(0xFFFFF3CD), 'Đang giữ chỗ (vàng)'),
+        const SizedBox(width: 14),
+        _legendItem(const Color(0xFFE5EAF0), staff ? 'Đang dùng' : 'Đã đặt (xám)'),
+        const SizedBox(width: 14),
+        _legendItem(ParkColors.blue, 'Đang chọn (xanh)'),
+      ],
     ),
+  );
+
+  Widget _legendItem(Color color, String label) => Row(
+    children: [
+      Container(
+        width: 14,
+        height: 14,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.black12, width: 0.5),
+        ),
+      ),
+      const SizedBox(width: 5),
+      Txt(label, size: 11, color: ParkColors.muted, weight: FontWeight.w500),
+    ],
   );
 }
 
@@ -202,6 +211,7 @@ class SlotSelectionScreen extends StatelessWidget {
                     repository.slots.map((s) => s['code'] as String).toList(),
                 selected: repository.slot,
                 occupied: repository.occupied,
+                recentlyReserved: repository.recentlyReserved,
                 onSelect: (s) => repository.update(() => repository.slot = s),
               ),
               if (repository.slots.isEmpty)

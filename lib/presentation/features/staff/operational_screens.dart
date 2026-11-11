@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../app/providers.dart';
@@ -51,6 +52,7 @@ class _StaffScannerScreenState extends State<StaffScannerScreen>
 
   Future<void> open(String raw) async {
     if (processing) return;
+    HapticFeedback.mediumImpact();
     setState(() => processing = true);
     if (supported) await scanner.stop();
     if (!mounted) return;
@@ -183,6 +185,9 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
     await runAction(context, () async {
       final result = await widget.repository.recognizePlate();
       if (result == null || !mounted) return;
+      if (result.isNotEmpty) {
+        HapticFeedback.lightImpact();
+      }
       setState(() {
         candidates = result;
         if (result.length == 1) plate.text = result.first;

@@ -133,6 +133,24 @@ class ParkController extends ChangeNotifier {
           .where((s) => s['occupied'] == true || s['enabled'] == false)
           .map((s) => s['code'] as String)
           .toSet();
+
+  /// Các ô đang trong trạng thái vừa được đặt trước (trong vòng 10 phút gần đây)
+  Set<String> get recentlyReserved {
+    final tenMinutesAgo = DateTime.now().subtract(const Duration(minutes: 10));
+    final slotIds = bookings
+        .where((b) =>
+            b['lot_id'] == lot.id &&
+            b['status'] == 'confirmed' &&
+            b['created_at'] != null &&
+            DateTime.tryParse(b['created_at'] as String)?.isAfter(tenMinutesAgo) == true)
+        .map((b) => b['slot_id'] as String)
+        .toSet();
+
+    return slots
+        .where((s) => slotIds.contains(s['id']))
+        .map((s) => s['code'] as String)
+        .toSet();
+  }
   List<Vehicle> get vehicles =>
       snapshot
           .rows('vehicles')

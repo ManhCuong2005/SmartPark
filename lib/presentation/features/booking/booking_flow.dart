@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../park_controller.dart';
 import '../../../shared/widgets/park_widgets.dart';
 
@@ -37,6 +38,23 @@ class TimeSelectionScreen extends StatelessWidget {
       } else {
         repository.endDate = date;
       }
+    });
+    await repository.loadAvailability();
+  }
+
+  Future<void> setQuickHours(int hours) async {
+    HapticFeedback.selectionClick();
+    final startDt = DateTime(
+      repository.date.year,
+      repository.date.month,
+      repository.date.day,
+      repository.start.hour,
+      repository.start.minute,
+    );
+    final endDt = startDt.add(Duration(hours: hours));
+    repository.update(() {
+      repository.endDate = DateTime(endDt.year, endDt.month, endDt.day);
+      repository.end = TimeOfDay(hour: endDt.hour, minute: endDt.minute);
     });
     await repository.loadAvailability();
   }
@@ -135,6 +153,35 @@ class TimeSelectionScreen extends StatelessWidget {
                         ),
                       ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Chọn thời lượng đỗ nhanh
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Thời lượng nhanh: ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: ParkColors.muted,
+                        ),
+                      ),
+                      for (final h in [1, 2, 4, 8])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ActionChip(
+                            label: Text('+${h}h'),
+                            onPressed: () => setQuickHours(h),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
