@@ -58,17 +58,18 @@ jobs:
           echo "=== Build output directory contents ==="
           ls -la build/app/outputs/flutter-apk/ || true
 
-          # Chỉ giữ duy nhất 2 bản arm64-v8a tối ưu (bản phổ biến nhất cho người dùng và người quản lý/nhân viên)
-          if [ -f build/app/outputs/flutter-apk/app-customer-arm64-v8a-release.apk ]; then
-            cp build/app/outputs/flutter-apk/app-customer-arm64-v8a-release.apk release_apks/smartpark-${TAG_NAME}-customer.apk
-          elif [ -f build/app/outputs/flutter-apk/app-customer-release.apk ]; then
-            cp build/app/outputs/flutter-apk/app-customer-release.apk release_apks/smartpark-${TAG_NAME}-customer.apk
+          # Tìm chính xác 2 file APK arm64-v8a hoặc file release bất kỳ của Customer và Staff
+          CUSTOMER_APK=$(find build/app/outputs/flutter-apk -name "*customer*arm64*.apk" -o -name "*customer*release*.apk" | head -n 1)
+          STAFF_APK=$(find build/app/outputs/flutter-apk -name "*staff*arm64*.apk" -o -name "*staff*release*.apk" | head -n 1)
+
+          if [ -n "$CUSTOMER_APK" ] && [ -f "$CUSTOMER_APK" ]; then
+            echo "Found Customer APK: $CUSTOMER_APK"
+            cp "$CUSTOMER_APK" "release_apks/smartpark-${TAG_NAME}-customer.apk"
           fi
 
-          if [ -f build/app/outputs/flutter-apk/app-staff-arm64-v8a-release.apk ]; then
-            cp build/app/outputs/flutter-apk/app-staff-arm64-v8a-release.apk release_apks/smartpark-${TAG_NAME}-staff.apk
-          elif [ -f build/app/outputs/flutter-apk/app-staff-release.apk ]; then
-            cp build/app/outputs/flutter-apk/app-staff-release.apk release_apks/smartpark-${TAG_NAME}-staff.apk
+          if [ -n "$STAFF_APK" ] && [ -f "$STAFF_APK" ]; then
+            echo "Found Staff APK: $STAFF_APK"
+            cp "$STAFF_APK" "release_apks/smartpark-${TAG_NAME}-staff.apk"
           fi
 
           echo "=== Release APK Artifacts to upload (Only 2 APKs) ==="
