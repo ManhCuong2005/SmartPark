@@ -12,6 +12,7 @@ export const nav = [
   },
   { path: "/bookings", label: "Đặt chỗ", icon: "IconTicket", frame: "30:382" },
   { path: "/staff", label: "Nhân viên", icon: "IconUsers", frame: "30:553" },
+  { path: "/incidents", label: "Sự cố tại bãi", icon: "IconUsers", frame: "30:553" },
   {
     path: "/reports",
     label: "Báo cáo doanh thu",

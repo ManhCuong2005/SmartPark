@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { authErrorMessage, isAuthError } from "./auth-error";
 import { emptyData, localDate, statusLabels } from "./models";
 import type { AdminData, Row } from "./models";
 import { AdminLogin } from "../components/admin-auth";
@@ -106,6 +107,13 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
     vehicles: (raw.vehicles ?? []).filter((v) =>
       bookings.some((b) => b.vehicle_id === v.id),
     ),
+    incidents: (raw.incidents ?? []).filter((i) => ids.has(i.lot_id)).map((i) => ({
+      id: String(i.id), lotId: String(i.lot_id),
+      reporter: String(profiles.find((p) => p.id === i.reporter_id)?.name ?? "Nhân viên"),
+      bookingId: i.booking_id == null ? null : String(i.booking_id), category: String(i.category),
+      description: String(i.description), status: i.status as "open" | "in_progress" | "resolved",
+      resolution: String(i.resolution ?? ""), createdAt: String(i.created_at), updatedAt: String(i.updated_at),
+    })),
   };
 }
 export function AdminProvider({ children }: { children: ReactNode }) {
@@ -191,6 +199,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       "vehicles",
       "payments",
       "notifications",
+      "incident_reports",
     ]) {
       channel.on(
         "postgres_changes",
@@ -225,7 +234,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }
   async function signOut() {
     const { error } = await supabase.auth.signOut({ scope: "local" });
-    if (error) setToast(error.message);
+    if (error) setToast(authErrorMessage(error, "signOut"));
   }
   if (recovery && session)
     return (
@@ -245,7 +254,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
               setNewPassword("");
               setToast("Đã đổi mật khẩu. Có thể đăng nhập lại trong app.");
             } catch (e) {
-              setToast(message(e));
+              setToast(authErrorMessage(e, "passwordUpdate"));
             } finally {
               setBusy(false);
             }
@@ -286,6 +295,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         }}
         onResetPassword={async (email) => {
           const { error } = await supabase.auth.resetPasswordForEmail(email);
+          if (error) throw error;
+        }}
+        onResendConfirmation={async (email) => {
+          const { error } = await supabase.auth.resend({
+            type: "signup",
+            email,
+          });
           if (error) throw error;
         }}
       />
@@ -334,6 +350,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   );
 }
 function message(e: unknown) {
+  if (isAuthError(e)) return authErrorMessage(e);
   const text =
     e && typeof e === "object" && "message" in e
       ? String(e.message)

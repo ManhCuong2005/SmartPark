@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
+import { authErrorMessage, type AuthOperation } from "../data/auth-error";
 import "./admin-auth.css";
 
 type IconName =
@@ -409,29 +410,15 @@ function AuthShell({ children }: { children: ReactNode }) {
   );
 }
 
-function authError(error: unknown) {
-  const text =
-    error && typeof error === "object" && "message" in error
-      ? String(error.message)
-      : String(error);
-  if (/invalid login credentials/i.test(text))
-    return "Email hoặc mật khẩu chưa chính xác. Vui lòng thử lại.";
-  if (/email not confirmed/i.test(text))
-    return "Vui lòng xác nhận email trước khi đăng nhập.";
-  if (/rate limit|too many requests/i.test(text))
-    return "Bạn đã thử nhiều lần. Vui lòng đợi một chút rồi thử lại.";
-  if (/failed to fetch|network|fetch failed/i.test(text))
-    return "Chưa kết nối được hệ thống. Kiểm tra mạng và thử lại.";
-  return text;
-}
-
 export function AdminLogin({
   onSignIn,
   onResetPassword,
+  onResendConfirmation,
   notice = "",
 }: {
   onSignIn: (email: string, password: string) => Promise<void>;
   onResetPassword: (email: string) => Promise<void>;
+  onResendConfirmation: (email: string) => Promise<void>;
   notice?: string;
 }) {
   const id = useId(),
@@ -439,11 +426,11 @@ export function AdminLogin({
     [password, setPassword] = useState(""),
     [showPassword, setShowPassword] = useState(false),
     [busy, setBusy] = useState(false),
-    [mode, setMode] = useState<"login" | "reset">("login"),
+    [mode, setMode] = useState<"login" | "reset" | "resend">("login"),
     [error, setError] = useState(""),
     [sent, setSent] = useState(false),
     [capsLock, setCapsLock] = useState(false);
-  function changeMode(next: "login" | "reset") {
+  function changeMode(next: "login" | "reset" | "resend") {
     setMode(next);
     setError("");
     setSent(false);
@@ -455,13 +442,23 @@ export function AdminLogin({
     setError("");
     setSent(false);
     try {
-      if (mode === "login") await onSignIn(email.trim(), password);
-      else {
+      if (mode === "login") {
+        await onSignIn(email.trim(), password);
+      } else if (mode === "reset") {
         await onResetPassword(email.trim());
+        setSent(true);
+      } else {
+        await onResendConfirmation(email.trim());
         setSent(true);
       }
     } catch (failure) {
-      setError(authError(failure));
+      const operation: AuthOperation =
+        mode === "login"
+          ? "signIn"
+          : mode === "reset"
+            ? "passwordReset"
+            : "resendConfirmation";
+      setError(authErrorMessage(failure, operation));
     } finally {
       setBusy(false);
     }
@@ -471,13 +468,25 @@ export function AdminLogin({
       <div className="auth-form-content">
         <div className="auth-section-label">
           <span />{" "}
-          {mode === "login" ? "KHÔNG GIAN CỦA BẠN" : "LẤY LẠI QUYỀN TRUY CẬP"}
+          {mode === "login"
+            ? "KHÔNG GIAN CỦA BẠN"
+            : mode === "reset"
+              ? "LẤY LẠI QUYỀN TRUY CẬP"
+              : "XÁC NHẬN TÀI KHOẢN"}
         </div>
-        <h2>{mode === "login" ? "Đăng nhập chủ bãi" : "Quên mật khẩu?"}</h2>
+        <h2>
+          {mode === "login"
+            ? "Đăng nhập chủ bãi"
+            : mode === "reset"
+              ? "Quên mật khẩu?"
+              : "Gửi lại email xác nhận"}
+        </h2>
         <p className="auth-form-intro">
           {mode === "login"
             ? "Chào mừng trở lại. Sẵn sàng cho một ngày vận hành hiệu quả?"
-            : "Nhập email đã đăng ký. Chúng tôi sẽ gửi liên kết để bạn đặt lại mật khẩu."}
+            : mode === "reset"
+              ? "Nhập email đã đăng ký. Chúng tôi sẽ gửi liên kết để bạn đặt lại mật khẩu."
+              : "Nhập email đã đăng ký. Nếu tài khoản cần xác nhận, chúng tôi sẽ gửi lại hướng dẫn qua email."}
         </p>
         <form className="auth-login-form" onSubmit={submit} aria-busy={busy}>
           <div className="auth-field">
@@ -569,7 +578,9 @@ export function AdminLogin({
               <AuthIcon name="check" />
               <p>
                 {sent
-                  ? "Nếu email hợp lệ, liên kết khôi phục sẽ được gửi đến hộp thư của bạn. Kiểm tra cả thư rác."
+                  ? mode === "reset"
+                    ? "Nếu email hợp lệ, liên kết khôi phục sẽ được gửi đến hộp thư của bạn. Kiểm tra cả thư rác."
+                    : "Nếu tài khoản cần xác nhận, email hướng dẫn đã được gửi. Hãy kiểm tra hộp thư đến và thư rác."
                   : notice}
               </p>
             </div>
@@ -579,12 +590,14 @@ export function AdminLogin({
               {busy
                 ? mode === "login"
                   ? "Đang đăng nhập…"
-                  : "Đang gửi liên kết…"
+                  : "Đang gửi email…"
                 : mode === "login"
                   ? "Đăng nhập"
                   : sent
                     ? "Đã gửi yêu cầu"
-                    : "Gửi liên kết khôi phục"}
+                    : mode === "reset"
+                      ? "Gửi liên kết khôi phục"
+                      : "Gửi email xác nhận"}
             </span>
             {busy ? (
               <span className="auth-spinner" aria-hidden="true" />
@@ -592,7 +605,17 @@ export function AdminLogin({
               <AuthIcon name="arrow" />
             )}
           </button>
-          {mode === "reset" && (
+          {mode === "login" && (
+            <button
+              className="auth-back-button"
+              type="button"
+              onClick={() => changeMode("resend")}
+              disabled={busy}
+            >
+              Chưa nhận email xác nhận? Gửi lại
+            </button>
+          )}
+          {mode !== "login" && (
             <button
               className="auth-back-button"
               type="button"

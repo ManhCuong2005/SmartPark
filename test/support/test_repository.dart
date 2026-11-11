@@ -123,6 +123,8 @@ class TestRepository implements ParkingRepository {
     }
     return {};
   }
+  @override
+  Future<Json> reportIncident(String lotId, String? bookingId, String category, String description) async => {'id': 'test-incident'};
 
   @override
   Future<void> enqueue(PendingOperation operation) async {
@@ -154,6 +156,8 @@ class TestRepository implements ParkingRepository {
   ) async => false;
   @override
   Future<void> resetPassword(String email) async {}
+  @override
+  Future<void> resendConfirmationEmail(String email) async {}
   @override
   Future<void> signOut() async {
     loggedIn = false;

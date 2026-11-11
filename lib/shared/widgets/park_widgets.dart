@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/auth_error_handler.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/park_theme.dart';
 export '../../core/theme/park_theme.dart';
@@ -412,7 +413,9 @@ Future<bool> runAction(
     if (context.mounted && success != null) showMessage(context, success);
     return true;
   } catch (e) {
-    if (context.mounted) showMessage(context, e.toString());
+    if (context.mounted) {
+      showMessage(context, AuthErrorHandler.message(e));
+    }
     return false;
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
+import '../core/auth_error_handler.dart';
 import '../domain/plate_recognition_service.dart';
 import '../domain/parking_repository.dart';
 import '../domain/models.dart';
@@ -137,20 +138,27 @@ class ParkController extends ChangeNotifier {
   /// Các ô đang trong trạng thái vừa được đặt trước (trong vòng 10 phút gần đây)
   Set<String> get recentlyReserved {
     final tenMinutesAgo = DateTime.now().subtract(const Duration(minutes: 10));
-    final slotIds = bookings
-        .where((b) =>
-            b['lot_id'] == lot.id &&
-            b['status'] == 'confirmed' &&
-            b['created_at'] != null &&
-            DateTime.tryParse(b['created_at'] as String)?.isAfter(tenMinutesAgo) == true)
-        .map((b) => b['slot_id'] as String)
-        .toSet();
+    final slotIds =
+        bookings
+            .where(
+              (b) =>
+                  b['lot_id'] == lot.id &&
+                  b['status'] == 'confirmed' &&
+                  b['created_at'] != null &&
+                  DateTime.tryParse(
+                        b['created_at'] as String,
+                      )?.isAfter(tenMinutesAgo) ==
+                      true,
+            )
+            .map((b) => b['slot_id'] as String)
+            .toSet();
 
     return slots
         .where((s) => slotIds.contains(s['id']))
         .map((s) => s['code'] as String)
         .toSet();
   }
+
   List<Vehicle> get vehicles =>
       snapshot
           .rows('vehicles')
@@ -212,6 +220,8 @@ class ParkController extends ChangeNotifier {
   }
 
   List<Json> get notifications => snapshot.rows('notifications');
+  Future<Json> reportIncident(String lotId, String? bookingId, String category, String description) =>
+      backend.reportIncident(lotId, bookingId, category, description);
   List<Json> get parked =>
       bookings.where((b) => b['status'] == 'parked').toList();
   String get freshness =>
@@ -355,7 +365,11 @@ class ParkController extends ChangeNotifier {
       }
       return true;
     } catch (e) {
-      error = e.toString();
+      error = AuthErrorHandler.message(
+        e,
+        operation:
+            fullName == null ? AuthOperation.signIn : AuthOperation.signUp,
+      );
       return false;
     } finally {
       loading = false;
@@ -548,7 +562,28 @@ class ParkController extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> resetPassword(String email) => backend.resetPassword(email);
+  Future<void> resetPassword(String email) async {
+    try {
+      await backend.resetPassword(email);
+    } catch (error) {
+      throw ParkFailure(
+        AuthErrorHandler.message(error, operation: AuthOperation.passwordReset),
+      );
+    }
+  }
+
+  Future<void> resendConfirmationEmail(String email) async {
+    try {
+      await backend.resendConfirmationEmail(email);
+    } catch (error) {
+      throw ParkFailure(
+        AuthErrorHandler.message(
+          error,
+          operation: AuthOperation.resendConfirmation,
+        ),
+      );
+    }
+  }
 
   void _notify() {
     if (!_disposed) notifyListeners();

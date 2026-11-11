@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/auth_error_handler.dart';
 import '../domain/models.dart';
 import '../domain/parking_repository.dart';
 import '../domain/parking_rules.dart';
@@ -28,25 +29,59 @@ class SupabaseParkingRepository implements ParkingRepository {
     String name,
     String phone,
   ) async {
-    final response = await client.auth.signUp(
-      email: email.trim(),
-      password: password,
-      data: {'name': name.trim(), 'phone': phone.trim()},
-    );
-    return response.session != null;
+    try {
+      final response = await client.auth.signUp(
+        email: email.trim(),
+        password: password,
+        data: {'name': name.trim(), 'phone': phone.trim()},
+      );
+      return response.session != null;
+    } catch (error) {
+      throw ParkFailure(
+        AuthErrorHandler.message(error, operation: AuthOperation.signUp),
+      );
+    }
   }
 
   @override
   Future<void> signIn(String email, String password) async {
-    await client.auth.signInWithPassword(
-      email: email.trim(),
-      password: password,
-    );
+    try {
+      await client.auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
+      );
+    } catch (error) {
+      throw ParkFailure(
+        AuthErrorHandler.message(error, operation: AuthOperation.signIn),
+      );
+    }
   }
 
   @override
-  Future<void> resetPassword(String email) =>
-      client.auth.resetPasswordForEmail(email.trim());
+  Future<void> resetPassword(String email) async {
+    try {
+      await client.auth.resetPasswordForEmail(email.trim());
+    } catch (error) {
+      throw ParkFailure(
+        AuthErrorHandler.message(error, operation: AuthOperation.passwordReset),
+      );
+    }
+  }
+
+  @override
+  Future<void> resendConfirmationEmail(String email) async {
+    try {
+      await client.auth.resend(type: OtpType.signup, email: email.trim());
+    } catch (error) {
+      throw ParkFailure(
+        AuthErrorHandler.message(
+          error,
+          operation: AuthOperation.resendConfirmation,
+        ),
+      );
+    }
+  }
+
   @override
   Future<void> signOut() async {
     if ((await pending()).isNotEmpty) {
@@ -129,6 +164,16 @@ class SupabaseParkingRepository implements ParkingRepository {
   }
 
   @override
+  Future<Json> reportIncident(String lotId, String? bookingId, String category, String description) async {
+    try {
+      return Map<String, dynamic>.from(await client.rpc('report_incident', params: {
+        'p_lot_id': lotId, 'p_booking_id': bookingId, 'p_category': category,
+        'p_description': description,
+      }).timeout(const Duration(seconds: 12)) as Map);
+    } catch (e) { throw translate(e); }
+  }
+
+  @override
   Future<void> enqueue(PendingOperation operation) async {
     if (userId == null || operation.userId != userId) {
       throw const ParkFailure('Vui lòng đăng nhập lại.');
@@ -202,6 +247,7 @@ class SupabaseParkingRepository implements ParkingRepository {
       'bookings',
       'payments',
       'notifications',
+      'incident_reports',
       'favorites',
     ]) {
       _channel!.onPostgresChanges(
@@ -235,7 +281,9 @@ class SupabaseParkingRepository implements ParkingRepository {
         retryable: isTransientCode(error.code),
       );
     }
-    if (error is AuthException) return ParkFailure(error.message);
+    if (error is AuthException) {
+      return ParkFailure(AuthErrorHandler.message(error));
+    }
     return const ParkFailure(
       'Chưa kết nối được máy chủ. Dữ liệu gần nhất vẫn được lưu trên thiết bị.',
       retryable: true,
