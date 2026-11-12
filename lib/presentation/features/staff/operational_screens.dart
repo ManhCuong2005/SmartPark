@@ -176,6 +176,16 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
   final plate = TextEditingController();
   bool recognizing = false;
   List<String> candidates = [];
+  void returnToScanner() {
+    final navigator = Navigator.of(context);
+    var scannerInStack = false;
+    navigator.popUntil((route) {
+      scannerInStack = route.settings.name == '/staff/scan';
+      return scannerInStack || route.isFirst;
+    });
+    if (!scannerInStack) navigator.pushNamed('/staff/scan');
+  }
+
   @override
   void dispose() {
     plate.dispose();
@@ -211,11 +221,6 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
     final scheduledEnd = DateTime.parse(b['ends_at'] as String).toLocal();
     final arrival = DateTime.now();
     final late = entering && !arrival.isBefore(scheduledEnd);
-    final revised = admissionPeriod(
-      DateTime.parse(b['starts_at'] as String).toLocal(),
-      scheduledEnd,
-      arrival,
-    );
     final pending = repo.operations.any(
       (o) => o.payload['booking_id'] == b['id'],
     );
@@ -253,11 +258,25 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                           'Hạn nhận xe',
                           '${displayDate(noShowDeadline(scheduledEnd))} ${clock(TimeOfDay.fromDateTime(noShowDeadline(scheduledEnd)))}',
                         ),
-                      if (preview != null && b['status'] == 'parked')
-                        DetailRow('Phí tạm tính', money(preview)),
+                      if (preview != null && b['status'] == 'parked') ...[
+                        DetailRow('Số tiền cần thu', money(preview)),
+                        DetailRow(
+                          'Đơn giá',
+                          '${money(b['hourly_rate'] as int)}/giờ',
+                        ),
+                        const Text(
+                          'Thu từ phút đầu, tối thiểu 1 giờ. Chỉ xác nhận xe ra sau khi đã thu tiền.',
+                        ),
+                      ],
                       if (b['status'] == 'completed' &&
                           b['local_pending'] != true)
                         DetailRow('Đã thu', money(b['amount'] as int)),
+                      if (b['status'] == 'completed' &&
+                          b['local_pending'] == true)
+                        DetailRow(
+                          'Khoản thu chờ đồng bộ',
+                          money(b['amount'] as int),
+                        ),
                     ],
                   ),
                 ),
@@ -266,7 +285,7 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                   ParkCard(
                     color: ParkColors.paleBlue,
                     child: Text(
-                      'Khách đến sau giờ ra dự kiến. Nếu còn chỗ và không trùng lịch, giờ ra sẽ dời đến ${displayDate(revised.end)} ${clock(TimeOfDay.fromDateTime(revised.end))}. Phí tính từ lúc thực tế vào bãi.',
+                      'Vé chưa sử dụng đã quá giờ ra dự kiến. Không thể check-in bằng vé này; khách cần đặt vé mới.',
                       style: const TextStyle(color: ParkColors.navy),
                     ),
                   ),
@@ -310,16 +329,31 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                     entering
                         ? 'Xác nhận xe vào'
                         : 'Xác nhận thu tiền mặt và xe ra',
+                    enabled: !late,
                     action: () async {
+                      final checkoutAt = DateTime.now().toUtc();
+                      final due =
+                          entering
+                              ? null
+                              : calculateFee(
+                                DateTime.parse(b['checked_in_at'] as String),
+                                checkoutAt,
+                                b['hourly_rate'] as int,
+                                b['free_minutes'] as int,
+                              );
                       if (!await confirmAction(
                         context,
                         entering
                             ? 'Xác nhận biển số thực tế và cho xe vào bãi?'
-                            : 'Xác nhận đã thu tiền mặt theo thời gian gửi xe và cho xe ra?',
+                            : 'Xác nhận đã thu ${money(due!)} tiền mặt cho xe ${b['plate']} và cho xe ra?${repo.online ? '' : ' Đang ngoại tuyến: khoản thu sẽ chờ máy chủ xác nhận, chưa vào doanh thu.'}',
                       )) {
                         return;
                       }
-                      await repo.staffAction(entering, plate.text);
+                      await repo.staffAction(
+                        entering,
+                        plate.text,
+                        checkoutAt: entering ? null : checkoutAt,
+                      );
                       if (context.mounted) {
                         showMessage(
                           context,
@@ -327,8 +361,12 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                                 (o) => o.payload['booking_id'] == b['id'],
                               )
                               ? 'Thao tác đang chờ máy chủ xác nhận. Kiểm tra hàng đợi.'
-                              : 'Máy chủ đã xác nhận.',
+                              : entering
+                              ? 'Máy chủ đã xác nhận xe vào.'
+                              : 'Đã ghi nhận thu ${money(repo.ticket?['amount'] as int? ?? due!)} và xe ra. Khoản thu đã gửi vào doanh thu của bãi.',
                         );
+                        repo.update(() => repo.scannedQr = null);
+                        returnToScanner();
                       }
                     },
                   ),

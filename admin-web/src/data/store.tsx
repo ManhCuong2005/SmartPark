@@ -9,8 +9,18 @@ import {
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import { emptyData, localDate, statusLabels } from "./models";
-import type { AdminData, Row } from "./models";
+import {
+  emptyData,
+  formatTime,
+  localDate,
+  statusLabels,
+} from "./models";
+import type {
+  AdminData,
+  AdminNotification,
+  Row,
+  VehicleKind,
+} from "./models";
 import { AdminLogin } from "../components/admin-auth";
 
 type Store = {
@@ -21,93 +31,206 @@ type Store = {
   command: (name: string, params: Row) => Promise<boolean>;
   signOut: () => Promise<void>;
   online: boolean;
+  syncing: boolean;
   lastUpdated: string;
 };
+
 const Context = createContext<Store | null>(null);
+
+function normalizeKind(raw: unknown): VehicleKind {
+  return raw === "motorcycle" ? "motorcycle" : "car";
+}
+
 function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
-  const profiles = raw.profiles ?? [],
-    own = (raw.lots ?? []).filter((l) => l.owner_id === userId),
-    ids = new Set(own.map((l) => l.id)),
-    slots = (raw.slots ?? []).filter((s) => ids.has(s.lot_id)),
-    bookings = (raw.bookings ?? []).filter((b) => ids.has(b.lot_id));
-  return {
-    lots: own.map((l) => ({
-      id: String(l.id),
-      name: String(l.name),
-      area: String(l.area),
+  const profiles = raw.profiles ?? [];
+  const profileById = new Map<string, Row>(
+    profiles.map((p) => [String(p.id), p]),
+  );
+
+  const own = (raw.lots ?? []).filter((l) => l.owner_id === userId);
+  const lotById = new Map<string, Row>(own.map((l) => [String(l.id), l]));
+
+  const slots = (raw.slots ?? []).filter((s) => lotById.has(String(s.lot_id)));
+  const slotById = new Map<string, Row>(slots.map((s) => [String(s.id), s]));
+
+  const bookings = (raw.bookings ?? []).filter((b) =>
+    lotById.has(String(b.lot_id)),
+  );
+  const bookingById = new Map<string, Row>(
+    bookings.map((b) => [String(b.id), b]),
+  );
+
+  const usedVehicleIds = new Set(
+    bookings.map((b) => String(b.vehicle_id ?? "")).filter(Boolean),
+  );
+  const rawVehicles = (raw.vehicles ?? []).filter((v) =>
+    usedVehicleIds.has(String(v.id)),
+  );
+  const vehicleById = new Map<string, Row>(
+    rawVehicles.map((v) => [String(v.id), v]),
+  );
+
+  const lots = own.map((l) => {
+    const lid = String(l.id);
+    const lotSlots = slots.filter((s) => String(s.lot_id) === lid);
+    const occupied = bookings.filter(
+      (b) => String(b.lot_id) === lid && b.status === "parked",
+    ).length;
+    return {
+      id: lid,
+      name: String(l.name ?? ""),
+      area: String(l.area ?? ""),
       enabled: l.enabled === true,
-      capacity: slots.filter((s) => s.lot_id === l.id).length,
-      occupied: bookings.filter(
-        (b) => b.lot_id === l.id && b.status === "parked",
+      capacity: lotSlots.length,
+      enabledCapacity: lotSlots.filter((s) => s.enabled === true).length,
+      occupied,
+      availableSlots: lotSlots.filter(
+        (s) => s.enabled === true && s.occupied !== true,
       ).length,
-      version: Number(l.version),
+      version: Number(l.version ?? 0),
       latitude: l.latitude == null ? null : Number(l.latitude),
       longitude: l.longitude == null ? null : Number(l.longitude),
-    })),
-    bookings: bookings.map((b) => ({
+      createdAt: String(l.created_at ?? ""),
+    };
+  });
+
+  const normalizedBookings = bookings.map((b) => {
+    const customerProfile = profileById.get(String(b.customer_id ?? ""));
+    const vehicle = vehicleById.get(String(b.vehicle_id ?? ""));
+    const slot = slotById.get(String(b.slot_id ?? ""));
+    const startsAt = String(b.starts_at ?? "");
+    const endsAt = String(b.ends_at ?? "");
+    return {
       id: String(b.id),
-      customer: String(
-        profiles.find((p) => p.id === b.customer_id)?.name ?? "",
-      ),
-      plate: String(b.plate),
+      customer: String(customerProfile?.name ?? ""),
+      customerEmail: String(customerProfile?.email ?? ""),
+      customerPhone: String(customerProfile?.phone ?? ""),
+      plate: String(b.plate ?? ""),
+      vehicleId: String(b.vehicle_id ?? ""),
+      vehicleKind: normalizeKind(vehicle?.kind),
+      vehicleLabel: String(vehicle?.label ?? ""),
       lotId: String(b.lot_id),
-      date: localDate(String(b.starts_at)),
-      start: new Date(String(b.starts_at)).toLocaleTimeString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      end: new Date(String(b.ends_at)).toLocaleTimeString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      status: statusLabels[String(b.status)],
-      amount: Number(b.amount),
-      version: Number(b.version),
+      slotId: String(b.slot_id ?? ""),
+      slotCode: String(slot?.code ?? ""),
+      date: localDate(startsAt),
+      start: formatTime(startsAt),
+      end: formatTime(endsAt),
+      startsAt,
+      endsAt,
+      createdAt: String(b.created_at ?? ""),
+      status: statusLabels[String(b.status)] ?? "Đã xác nhận",
+      hourlyRate: Number(b.hourly_rate ?? 0),
+      freeMinutes: Number(b.free_minutes ?? 0),
+      amount: Number(b.amount ?? 0),
+      version: Number(b.version ?? 0),
       checkedIn: b.checked_in_at == null ? null : String(b.checked_in_at),
       checkedOut: b.checked_out_at == null ? null : String(b.checked_out_at),
-    })),
-    staff: (raw.memberships ?? [])
-      .filter((s) => ids.has(s.lot_id))
-      .map((s) => ({
+    };
+  });
+
+  const staff = (raw.memberships ?? [])
+    .filter((s) => lotById.has(String(s.lot_id)))
+    .map((s) => {
+      const p = profileById.get(String(s.user_id ?? ""));
+      return {
         id: `${s.lot_id}:${s.user_id}`,
         userId: String(s.user_id),
         lotId: String(s.lot_id),
-        name: String(profiles.find((p) => p.id === s.user_id)?.name ?? ""),
-        email: String(profiles.find((p) => p.id === s.user_id)?.email ?? ""),
+        name: String(p?.name ?? ""),
+        email: String(p?.email ?? ""),
         shift: s.shift as "morning" | "afternoon" | "night",
         active: s.active === true,
-      })),
-    pricing: Object.fromEntries(
-      own.map((l) => [
-        String(l.id),
-        {
-          car: Number(l.car_rate),
-          motorcycle: Number(l.motorcycle_rate),
-          freeMinutes: Number(l.free_minutes),
-          version: Number(l.version),
-        },
-      ]),
-    ),
-    payments: (raw.payments ?? [])
-      .filter((p) => bookings.some((b) => b.id === p.booking_id))
-      .map((p) => ({
+      };
+    });
+
+  const pricing = Object.fromEntries(
+    own.map((l) => [
+      String(l.id),
+      {
+        car: Number(l.car_rate ?? 0),
+        motorcycle: Number(l.motorcycle_rate ?? 0),
+        freeMinutes: Number(l.free_minutes ?? 0),
+        version: Number(l.version ?? 0),
+      },
+    ]),
+  );
+
+  const payments = (raw.payments ?? [])
+    .filter((p) => bookingById.has(String(p.booking_id)))
+    .map((p) => {
+      const booking = bookingById.get(String(p.booking_id));
+      const lid = String(booking?.lot_id ?? "");
+      const lot = lotById.get(lid);
+      const vehicle = vehicleById.get(String(booking?.vehicle_id ?? ""));
+      const customer = profileById.get(String(booking?.customer_id ?? ""));
+      const collectorId = String(p.received_by ?? "");
+      const collector = profileById.get(collectorId);
+      return {
         id: String(p.id),
         bookingId: String(p.booking_id),
-        amount: Number(p.amount),
-        paidAt: String(p.paid_at),
-      })),
-    slots: slots.map((s) => ({
-      id: String(s.id),
-      lotId: String(s.lot_id),
-      code: String(s.code),
-      enabled: s.enabled === true,
-      occupied: s.occupied === true,
-    })),
-    vehicles: (raw.vehicles ?? []).filter((v) =>
-      bookings.some((b) => b.vehicle_id === v.id),
-    ),
+        amount: Number(p.amount ?? 0),
+        method: String(p.method ?? "cash"),
+        paidAt: String(p.paid_at ?? ""),
+        receivedBy: collectorId,
+        receivedByName: String(collector?.name ?? collector?.email ?? ""),
+        lotId: lid,
+        lotName: String(lot?.name ?? ""),
+        plate: String(booking?.plate ?? ""),
+        customerName: String(customer?.name ?? ""),
+        vehicleKind: normalizeKind(vehicle?.kind),
+        checkedInAt:
+          booking?.checked_in_at == null ? null : String(booking.checked_in_at),
+        checkedOutAt:
+          booking?.checked_out_at == null
+            ? null
+            : String(booking.checked_out_at),
+        hourlyRate: Number(booking?.hourly_rate ?? 0),
+        freeMinutes: Number(booking?.free_minutes ?? 0),
+      };
+    })
+    .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
+
+  const normalizedSlots = slots.map((s) => ({
+    id: String(s.id),
+    lotId: String(s.lot_id),
+    code: String(s.code ?? ""),
+    enabled: s.enabled === true,
+    occupied: s.occupied === true,
+  }));
+
+  const vehicles = rawVehicles.map((v) => ({
+    id: String(v.id),
+    userId: String(v.user_id ?? ""),
+    label: String(v.label ?? ""),
+    plate: String(v.plate ?? ""),
+    kind: normalizeKind(v.kind),
+  }));
+
+  const notifications: AdminNotification[] = (raw.notifications ?? [])
+    .filter((n) => n.user_id == null || String(n.user_id) === userId)
+    .map((n) => ({
+      id: String(n.id),
+      title: String(n.title ?? ""),
+      body: String(n.body ?? ""),
+      category: String(n.category ?? "system"),
+      read: n.read === true,
+      createdAt: String(n.created_at ?? ""),
+      bookingId: n.booking_id == null ? null : String(n.booking_id),
+    }))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  return {
+    lots,
+    bookings: normalizedBookings,
+    staff,
+    pricing,
+    payments,
+    slots: normalizedSlots,
+    vehicles,
+    notifications,
   };
 }
+
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null),
     [ready, setReady] = useState(false),
@@ -115,13 +238,16 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     [data, setData] = useState(emptyData),
     [toast, setToast] = useState(""),
     [online, setOnline] = useState(false),
+    [syncing, setSyncing] = useState(false),
     [lastUpdated, setLastUpdated] = useState(""),
     [busy, setBusy] = useState(false),
     [recovery, setRecovery] = useState(false),
     [newPassword, setNewPassword] = useState("");
   const generation = useRef(0),
     refreshing = useRef(false),
+    queuedRefresh = useRef(false),
     currentUser = useRef<string | null>(null);
+
   useEffect(() => {
     let active = true;
     void supabase.auth.getSession().then(({ data }) => {
@@ -137,6 +263,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       if (currentUser.current !== (next?.user.id ?? null)) {
         generation.current++;
         refreshing.current = false;
+        queuedRefresh.current = false;
+        setSyncing(false);
         setData(emptyData);
         setProfile({});
         setOnline(false);
@@ -150,9 +278,15 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
   const refresh = useCallback(async () => {
-    if (!session || refreshing.current) return;
+    if (!session) return;
+    if (refreshing.current) {
+      queuedRefresh.current = true;
+      return;
+    }
     refreshing.current = true;
+    setSyncing(true);
     const requestGeneration = generation.current;
     try {
       const { data: raw, error } = await supabase.rpc("park_snapshot");
@@ -171,16 +305,27 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         setToast(message(e));
       }
     } finally {
-      if (generation.current === requestGeneration) refreshing.current = false;
+      if (generation.current === requestGeneration) {
+        refreshing.current = false;
+        setSyncing(false);
+        if (queuedRefresh.current) {
+          queuedRefresh.current = false;
+          void refresh();
+        }
+      }
     }
   }, [session]);
+
   useEffect(() => {
     if (!session) return;
     void refresh();
     let timer: ReturnType<typeof setTimeout>;
     const update = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => void refresh(), 350);
+      timer = setTimeout(() => void refresh(), 300);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") update();
     };
     const channel = supabase.channel(`admin:${session.user.id}`);
     for (const table of [
@@ -201,17 +346,20 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     channel.subscribe((status) => {
       if (status === "SUBSCRIBED") update();
     });
-    const interval = setInterval(() => void refresh(), 30000);
+    const interval = setInterval(() => void refresh(), 25000);
     window.addEventListener("online", update);
     window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
       window.removeEventListener("online", update);
       window.removeEventListener("focus", update);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       void supabase.removeChannel(channel);
     };
   }, [session, refresh]);
+
   async function command(name: string, params: Row) {
     try {
       const { error } = await supabase.rpc(name, params);
@@ -223,10 +371,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       return false;
     }
   }
+
   async function signOut() {
     const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) setToast(error.message);
   }
+
   if (recovery && session)
     return (
       <main className="auth-page">
@@ -318,6 +468,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         command,
         signOut,
         online,
+        syncing,
         lastUpdated,
       }}
     >
@@ -333,6 +484,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     </Context.Provider>
   );
 }
+
 function message(e: unknown) {
   const text =
     e && typeof e === "object" && "message" in e
@@ -350,11 +502,13 @@ function message(e: unknown) {
     return "Bạn chỉ có thể cấp hoặc thu hồi quyền nhân viên tại bãi do mình quản lý.";
   return text;
 }
+
 export function useAdmin() {
   const value = useContext(Context);
   if (!value) throw new Error("AdminProvider is required");
   return value;
 }
+
 export function exportCsv(
   filename: string,
   headers: string[],

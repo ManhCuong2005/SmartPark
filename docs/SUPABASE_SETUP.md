@@ -25,7 +25,14 @@ Trong SQL Editor của project phát triển SmartPark, chạy theo thứ tự:
    lịch xe/ô giữa giao diện và lệnh đặt, phân biệt hai loại xung đột và giữ receipt
    khi retry. App mới cần RPC này, không tự fallback sang dữ liệu ô trống cũ.
 
-Mỗi migration chỉ chạy một lần. Không chạy lại 001 nếu đã thành công. Không chạy
+Mỗi migration chỉ chạy một lần. Không chạy lại 001 nếu đã thành công.
+Migration **008** đã áp dụng trên project hiện tại: xóa vé chưa dùng quá giờ ra,
+gia hạn có kiểm tra lịch và nhắc trước 10 phút. Xem
+[xóa vé và gia hạn](EXPIRY_AND_EXTENSIONS.md). Không chạy lại.
+`202611120007_paid_checkout.sql` đã áp dụng trên project hiện tại theo lựa chọn
+thu từ phút đầu, tối thiểu 1 giờ; xem [thu tiền khi xe ra](CHECKOUT_PAYMENTS.md).
+
+Không chạy
 `supabase/tests/bootstrap.sql` hoặc `behavior.sql` trên Cloud; đó là fixture test.
 Nếu 002 gặp vé đặt trùng tồn tại, transaction sẽ thất bại và không tự xóa vé;
 cần kiểm tra các vé đó trước khi áp dụng constraint.

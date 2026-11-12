@@ -1,7 +1,22 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Asset, Dialog, Button, FrameContext } from "../components/ui";
+import {
+  Asset,
+  Badge,
+  Button,
+  Dialog,
+  FrameContext,
+  UiIcon,
+} from "../components/ui";
+import {
+  formatDateTime,
+  initials,
+  localDate,
+  money,
+  shortLot,
+} from "../data/models";
 import { useAdmin } from "../data/store";
+
 export const nav = [
   { path: "/", label: "Tổng quan", icon: "IconHome", frame: "30:5" },
   {
@@ -25,53 +40,98 @@ export const nav = [
     frame: "30:894",
   },
 ];
+
 export function Layout() {
   const { pathname, search: routeSearch } = useLocation(),
     navigate = useNavigate(),
-    { data, refresh, signOut, profile, online, lastUpdated } = useAdmin();
+    { data, refresh, command, signOut, profile, online, syncing, lastUpdated } =
+      useAdmin();
   const [mobile, setMobile] = useState(false),
     [help, setHelp] = useState(false),
     [notifications, setNotifications] = useState(false),
     [account, setAccount] = useState(false),
-    [search, setSearch] = useState("");
+    [search, setSearch] = useState(""),
+    [dark, setDark] = useState(() =>
+      document.documentElement.classList.contains("dark"),
+    );
+
   const frame = nav.find((n) => n.path === pathname)?.frame ?? "30:5";
+  const ownerName = String(profile.name ?? "").trim() || "Admin SmartPark";
+  const ownerEmail = String(profile.email ?? "").trim();
+  const ownerInitials = initials(ownerName, "AD");
+  const ownerShortName = ownerName.split(/\s+/).slice(-1)[0] || "Quản trị";
+
+  const today = localDate();
+  const pendingCheckinCount = data.bookings.filter(
+    (b) => b.status === "Đã xác nhận",
+  ).length;
+  const activeParked = data.bookings.filter(
+    (b) => b.status === "Đang sử dụng",
+  );
+  const nowMs = Date.now();
+  const overdueCount = activeParked.filter((b) => {
+    const endMs = b.endsAt ? new Date(b.endsAt).getTime() : NaN;
+    return !Number.isNaN(endMs) && endMs < nowMs;
+  }).length;
+  const todayRevenue = data.payments
+    .filter((p) => localDate(p.paidAt) === today)
+    .reduce((sum, p) => sum + p.amount, 0);
+  const unreadDbNotifications = data.notifications.filter((n) => !n.read);
+  const hasUnreadAlerts =
+    unreadDbNotifications.length > 0 || overdueCount > 0;
+
   const q = search.toLocaleLowerCase("vi").trim();
   const hits = q
     ? [
         ...data.lots
           .filter((l) =>
-            (l.name + " " + l.area).toLocaleLowerCase("vi").includes(q),
+            `${l.name} ${l.area}`.toLocaleLowerCase("vi").includes(q),
           )
           .slice(0, 3)
           .map((l) => ({
-            label: l.name,
+            label: `${l.name} (${l.occupied}/${l.capacity})`,
             kind: "Bãi đỗ",
             path: "/parking?q=" + encodeURIComponent(l.name),
           })),
         ...data.bookings
           .filter((b) =>
-            (b.id + " " + b.customer + " " + b.plate)
+            `${b.id} ${b.customer} ${b.plate} ${b.slotCode}`
               .toLocaleLowerCase("vi")
               .includes(q),
           )
           .slice(0, 3)
           .map((b) => ({
-            label: `${b.id} · ${b.customer}`,
+            label: `${b.plate} · ${b.customer || "Khách đặt chỗ"}`,
             kind: "Đặt chỗ",
-            path: "/bookings?q=" + encodeURIComponent(b.id),
+            path: "/bookings?q=" + encodeURIComponent(b.plate || b.id),
           })),
         ...data.staff
           .filter((s) =>
-            (s.name + " " + s.id).toLocaleLowerCase("vi").includes(q),
+            `${s.name} ${s.email} ${shortLot(data.lots.find((l) => l.id === s.lotId))}`
+              .toLocaleLowerCase("vi")
+              .includes(q),
           )
           .slice(0, 3)
           .map((s) => ({
-            label: s.name,
+            label: `${s.name || s.email}`,
             kind: "Nhân viên",
-            path: "/staff?q=" + encodeURIComponent(s.name),
+            path: "/staff?q=" + encodeURIComponent(s.email || s.name),
+          })),
+        ...data.payments
+          .filter((p) =>
+            `${p.plate} ${p.customerName} ${p.lotName} ${p.id}`
+              .toLocaleLowerCase("vi")
+              .includes(q),
+          )
+          .slice(0, 2)
+          .map((p) => ({
+            label: `${p.plate || p.id.slice(0, 8)} · ${money(p.amount)}`,
+            kind: "Giao dịch",
+            path: "/reports?q=" + encodeURIComponent(p.plate || p.id),
           })),
       ]
     : [];
+
   return (
     <FrameContext.Provider value={frame}>
       <div className="admin-app">
@@ -80,6 +140,7 @@ export function Layout() {
         </a>
         {mobile && (
           <button
+            type="button"
             className="sidebar-backdrop"
             aria-label="Đóng menu"
             onClick={() => setMobile(false)}
@@ -117,25 +178,28 @@ export function Layout() {
             ))}
           </nav>
           <div className="sidebar-bottom">
-            <button className="support" onClick={() => setHelp(true)}>
+            <button
+              type="button"
+              className="support"
+              onClick={() => setHelp(true)}
+            >
               <span>
                 <Asset name="IconHelp" />
                 <strong>Trợ giúp quản lý</strong>
               </span>
               <small>
-                Hỗ trợ vận hành bãi đỗ
-                <br />
-                và quản lý hệ thống.
+                Đồng bộ thời gian thực với ứng dụng Khách hàng và Nhân viên.
               </small>
             </button>
             <button
+              type="button"
               className="sidebar-account"
               onClick={() => setAccount(true)}
             >
-              <span className="admin-initials">AD</span>
+              <span className="admin-initials">{ownerInitials}</span>
               <span>
-                <strong>Admin SmartPark</strong>
-                <small>Quản trị viên</small>
+                <strong>{ownerName}</strong>
+                <small>Chủ bãi SmartPark</small>
               </span>
             </button>
           </div>
@@ -143,6 +207,7 @@ export function Layout() {
         <div className="workspace">
           <header className="topbar">
             <button
+              type="button"
               className="mobile-menu"
               aria-label="Mở menu quản trị"
               onClick={() => setMobile(true)}
@@ -153,7 +218,7 @@ export function Layout() {
               <Asset name="IconSearch" />
               <input
                 aria-label="Tìm kiếm toàn hệ thống"
-                placeholder="Tìm bãi đỗ, đặt chỗ, nhân viên..."
+                placeholder="Tìm bãi đỗ, biển số, nhân viên, giao dịch..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -165,6 +230,7 @@ export function Layout() {
                   {hits.length ? (
                     hits.map((h, i) => (
                       <button
+                        type="button"
                         key={h.path + i}
                         onClick={() => {
                           navigate(h.path);
@@ -176,42 +242,78 @@ export function Layout() {
                       </button>
                     ))
                   ) : (
-                    <p>Không tìm thấy kết quả.</p>
+                    <p>Không tìm thấy kết quả phù hợp.</p>
                   )}
                 </div>
               )}
             </div>
             <div className="topbar-actions">
-              <span className="demo-label" title={lastUpdated}>
+              <span
+                className={`demo-label ${online ? "is-online" : "is-offline"}`}
+                title={
+                  lastUpdated
+                    ? `Cập nhật gần nhất: ${lastUpdated}`
+                    : "Đang chờ đồng bộ Supabase"
+                }
+              >
                 {online ? "Supabase · đã kết nối" : "Chưa kết nối"}
               </span>
               <button
+                type="button"
+                className="icon-tool-button"
+                aria-label="Đồng bộ dữ liệu ngay"
+                title={
+                  lastUpdated
+                    ? `Đồng bộ dữ liệu (${lastUpdated})`
+                    : "Đồng bộ dữ liệu"
+                }
+                disabled={syncing}
+                onClick={() => void refresh()}
+              >
+                <UiIcon
+                  name="refresh"
+                  size={16}
+                  className={syncing ? "spin" : ""}
+                />
+              </button>
+              <button
+                type="button"
+                className="icon-tool-button"
                 aria-label="Đổi giao diện sáng tối"
+                title={dark ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"}
                 onClick={() => {
-                  const dark =
+                  const next =
                     document.documentElement.classList.toggle("dark");
+                  setDark(next);
                   localStorage.setItem(
                     "smartpark-theme",
-                    dark ? "dark" : "light",
+                    next ? "dark" : "light",
                   );
                 }}
               >
-                ◐
+                <UiIcon name={dark ? "sun" : "moon"} size={17} />
               </button>
               <button
+                type="button"
                 className="notification-button"
                 aria-label="Xem thông báo"
                 onClick={() => setNotifications(true)}
               >
                 <Asset name="IconBell" />
-                <Asset name="NotificationDot" className="notification-dot" />
+                {hasUnreadAlerts && (
+                  <Asset name="NotificationDot" className="notification-dot" />
+                )}
               </button>
-              <button className="admin-chip" onClick={() => setAccount(true)}>
+              <button
+                type="button"
+                className="admin-chip"
+                onClick={() => setAccount(true)}
+              >
                 <span className="avatar">
                   <Asset name="Avatar" />
-                  <b>A</b>
+                  <b>{ownerInitials.slice(0, 1)}</b>
                 </span>
-                <span>Quản trị</span>
+                <span>{ownerShortName}</span>
               </button>
             </div>
           </header>
@@ -222,43 +324,100 @@ export function Layout() {
             <Outlet key={pathname + routeSearch} />
           </main>
         </div>
+
         {help && (
           <Dialog
-            title="Trợ giúp quản lý"
+            title="Trợ giúp & luồng đồng bộ"
             onClose={() => setHelp(false)}
             footer={<Button onClick={() => setHelp(false)}>Đã hiểu</Button>}
           >
-            <p>
-              Quản lý bãi đỗ, phân công nhân viên, tra cứu vé và xuất báo cáo từ
-              dữ liệu Supabase Cloud.
-            </p>
-            <p>
-              Nhân viên quét QR và nhận diện biển số trên ứng dụng di động.
-              Doanh thu được ghi nhận khi nhân viên xác nhận thu tiền mặt và
-              check-out.
-            </p>
+            <div className="help-blocks">
+              <div className="help-item">
+                <strong>Đồng bộ với Khách hàng</strong>
+                <p>
+                  Khi bạn cập nhật bảng giá, mở/khóa bãi đỗ hoặc bảo trì chỗ
+                  đỗ, ứng dụng Khách hàng tự động cập nhật theo thời gian thực.
+                </p>
+              </div>
+              <div className="help-item">
+                <strong>Đồng bộ với Nhân viên & Doanh thu</strong>
+                <p>
+                  Nhân viên check-in/check-out và xác nhận thu tiền mặt trên ứng
+                  dụng Nhân viên. Khoản thu sẽ xuất hiện ngay tại mục Báo cáo
+                  doanh thu và Tổng quan.
+                </p>
+              </div>
+            </div>
           </Dialog>
         )}
+
         {notifications && (
           <Dialog
-            title="Thông báo hệ thống"
+            title="Thông báo & vận hành"
             onClose={() => setNotifications(false)}
+            footer={
+              unreadDbNotifications.length > 0 ? (
+                <Button
+                  secondary
+                  onClick={() =>
+                    void command("apply_operation", {
+                      p_operation_id: crypto.randomUUID(),
+                      p_kind: "notifications.read",
+                      p_payload: {},
+                    })
+                  }
+                >
+                  Đánh dấu đã đọc ({unreadDbNotifications.length})
+                </Button>
+              ) : (
+                <Button secondary onClick={() => setNotifications(false)}>
+                  Đóng
+                </Button>
+              )
+            }
           >
             <ul className="notification-list">
               <li>
-                <strong>
-                  {
-                    data.bookings.filter((b) => b.status === "Đã xác nhận")
-                      .length
-                  }{" "}
-                  vé đang chờ xe vào
-                </strong>
-                <p>Theo dõi chi tiết tại mục Đặt chỗ.</p>
+                <div className="notif-row">
+                  <strong>Trạng thái vận hành hôm nay</strong>
+                  <Badge tone={online ? "green" : "gray"}>
+                    {online ? "Đang đồng bộ" : "Ngoại tuyến"}
+                  </Badge>
+                </div>
+                <p>
+                  {pendingCheckinCount} vé chờ vào bãi · {activeParked.length}{" "}
+                  xe đang đỗ · Thu hôm nay: {money(todayRevenue)}.
+                </p>
               </li>
+              {overdueCount > 0 && (
+                <li>
+                  <div className="notif-row">
+                    <strong>{overdueCount} xe đỗ quá giờ dự kiến</strong>
+                    <Badge tone="amber">Cần theo dõi</Badge>
+                  </div>
+                  <p>
+                    Nhân viên sẽ thu thêm phí quá giờ khi khách check-out tại
+                    cổng.
+                  </p>
+                </li>
+              )}
+              {data.notifications.slice(0, 6).map((item) => (
+                <li
+                  key={item.id}
+                  className={item.read ? "notif-read" : "notif-unread"}
+                >
+                  <div className="notif-row">
+                    <strong>{item.title}</strong>
+                    {!item.read && <Badge tone="blue">Mới</Badge>}
+                  </div>
+                  <p>{item.body}</p>
+                  <small>{formatDateTime(item.createdAt)}</small>
+                </li>
+              ))}
               <li>
-                <strong>
-                  {online ? "Đã kết nối Supabase" : "Chưa kết nối máy chủ"}
-                </strong>
+                <div className="notif-row">
+                  <strong>Đồng bộ Supabase Cloud</strong>
+                </div>
                 <p>
                   Cập nhật gần nhất: {lastUpdated || "chưa tải được dữ liệu"}.
                 </p>
@@ -266,39 +425,48 @@ export function Layout() {
             </ul>
           </Dialog>
         )}
+
         {account && (
           <Dialog
             title="Tài khoản chủ bãi"
             onClose={() => setAccount(false)}
             footer={
-              <Button
-                secondary
-                onClick={() => {
-                  void refresh();
-                  setAccount(false);
-                  navigate("/");
-                }}
-              >
-                Tải lại dữ liệu
-              </Button>
+              <div className="dialog-action-row">
+                <Button
+                  secondary
+                  onClick={() => {
+                    void refresh();
+                    setAccount(false);
+                  }}
+                >
+                  Tải lại dữ liệu
+                </Button>
+                <Button
+                  secondary
+                  onClick={() => {
+                    void signOut();
+                    setAccount(false);
+                  }}
+                >
+                  Đăng xuất
+                </Button>
+              </div>
             }
           >
-            <p>
-              <strong>{String(profile.name ?? "")}</strong> · Chủ bãi
+            <div className="account-summary">
+              <span className="admin-initials large">{ownerInitials}</span>
+              <div>
+                <strong>{ownerName}</strong>
+                <p>{ownerEmail || "Tài khoản chủ bãi SmartPark"}</p>
+                <Badge tone="green">Chủ bãi (Owner)</Badge>
+              </div>
+            </div>
+            <p className="account-note">
+              Phạm vi quản lý: {data.lots.length} bãi đỗ ·{" "}
+              {data.lots.reduce((sum, l) => sum + l.capacity, 0)} chỗ đỗ ·{" "}
+              {data.staff.filter((s) => s.active).length} phân công nhân viên
+              đang hoạt động. Dữ liệu chỉ thuộc các bãi do tài khoản này sở hữu.
             </p>
-            <p>
-              {String(profile.email ?? "")}. Chỉ có quyền quản lý các bãi thuộc
-              tài khoản này.
-            </p>
-            <Button
-              secondary
-              onClick={() => {
-                void signOut();
-                setAccount(false);
-              }}
-            >
-              Đăng xuất
-            </Button>
           </Dialog>
         )}
       </div>

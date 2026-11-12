@@ -14,12 +14,17 @@ void main() {
     },
   );
   test(
-    'fee matches server: grace period then full elapsed hours rounded up',
+    'fee charges from arrival: minimum one hour, then round full hours up',
     () {
       final start = DateTime.utc(2026, 1, 1);
+      expect(calculateFee(start, start, 15000, 15), 15000);
+      expect(
+        calculateFee(start, start.add(const Duration(seconds: 45)), 15000, 15),
+        15000,
+      );
       expect(
         calculateFee(start, start.add(const Duration(minutes: 10)), 15000, 10),
-        0,
+        15000,
       );
       expect(
         calculateFee(start, start.add(const Duration(minutes: 11)), 15000, 10),

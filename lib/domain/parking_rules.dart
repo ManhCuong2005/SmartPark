@@ -29,7 +29,10 @@ int calculateFee(
   }
   final seconds = end.difference(start).inMilliseconds / 1000;
   final minutes = (seconds / 60).ceil();
-  return minutes <= freeMinutes ? 0 : (minutes / 60).ceil() * hourlyRate;
+  // The persisted grace value is legacy data. Current policy charges from
+  // arrival, with at least one full hour, including an immediate check-out.
+  final hours = (minutes / 60).ceil();
+  return (hours < 1 ? 1 : hours) * hourlyRate;
 }
 
 void validateReservation(DateTime start, DateTime end, DateTime now) {
@@ -40,8 +43,7 @@ void validateReservation(DateTime start, DateTime end, DateTime now) {
   }
 }
 
-DateTime noShowDeadline(DateTime scheduledEnd) =>
-    scheduledEnd.add(const Duration(hours: 1));
+DateTime noShowDeadline(DateTime scheduledEnd) => scheduledEnd;
 
 /// A late arrival keeps the purchased duration; early admission reserves the
 /// actual arrival too. The server must approve the resulting interval atomically.

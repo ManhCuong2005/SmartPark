@@ -411,3 +411,151 @@ test("dark mode remains usable and captures review artifacts", async ({
     fullPage: true,
   });
 });
+
+test("reports supports period switching, lot filtering, receipt modal, CSV export, and real-time sync", async ({
+  page,
+}) => {
+  const { raw } = await connect(page);
+  const lot2 = "20000000-0000-0000-0000-000000000002";
+  raw.profiles.push({
+    id: "staff-collector",
+    email: "staff@test.invalid",
+    name: "Trần Minh Hà",
+    role: "staff",
+  });
+  raw.lots.push({
+    id: lot2,
+    owner_id: actor,
+    name: "Bãi thứ hai",
+    area: "Quận Hải Châu",
+    enabled: true,
+    car_rate: 20000,
+    motorcycle_rate: 5000,
+    free_minutes: 0,
+    version: 1,
+  });
+  raw.vehicles.push(
+    { id: "v-car", user_id: actor, label: "Mazda 3", plate: "43A12345", kind: "car" },
+    { id: "v-moto", user_id: actor, label: "Honda AirBlade", plate: "43C199999", kind: "motorcycle" },
+  );
+  raw.bookings[0].vehicle_id = "v-car";
+  raw.payments[0].received_by = "staff-collector";
+  raw.payments[0].method = "cash";
+
+  // Same-day motorcycle checkout at lot2
+  raw.bookings.push({
+    id: "60000000-0000-0000-0000-000000000002",
+    customer_id: actor,
+    vehicle_id: "v-moto",
+    lot_id: lot2,
+    plate: "43C199999",
+    starts_at: `${today}T07:00:00`,
+    ends_at: `${today}T09:00:00`,
+    status: "completed",
+    checked_in_at: `${today}T07:00:00`,
+    checked_out_at: `${today}T09:00:00`,
+    hourly_rate: 5000,
+    free_minutes: 0,
+    amount: 10000,
+    version: 3,
+  });
+  raw.payments.push({
+    id: "payment-moto",
+    booking_id: "60000000-0000-0000-0000-000000000002",
+    amount: 10000,
+    method: "cash",
+    received_by: "staff-collector",
+    paid_at: `${today}T09:00:00`,
+  });
+
+  // Historical payment in 2026-09 (outside current month unless switching period/month)
+  raw.bookings.push({
+    id: "60000000-0000-0000-0000-000000000003",
+    customer_id: actor,
+    vehicle_id: "v-car",
+    lot_id: lot,
+    plate: "43A12345",
+    starts_at: "2026-09-15T10:00:00",
+    ends_at: "2026-09-15T13:00:00",
+    status: "completed",
+    checked_in_at: "2026-09-15T10:00:00",
+    checked_out_at: "2026-09-15T13:00:00",
+    hourly_rate: 15000,
+    free_minutes: 0,
+    amount: 45000,
+    version: 3,
+  });
+  raw.payments.push({
+    id: "payment-hist",
+    booking_id: "60000000-0000-0000-0000-000000000003",
+    amount: 45000,
+    method: "cash",
+    received_by: "staff-collector",
+    paid_at: "2026-09-15T13:00:00",
+  });
+
+  await page.goto("/reports");
+  await expect(page.getByText("40.000đ", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Ô tô: 1 · Xe máy: 1")).toBeVisible();
+
+  // Click lot card to filter to Bãi thứ hai
+  await page.locator("button.rank-card", { hasText: "Bãi thứ hai" }).click();
+  await expect(page.getByText("10.000đ", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Bỏ lọc bãi" }).click();
+  await expect(page.getByText("40.000đ", { exact: true }).first()).toBeVisible();
+
+  // Switch to "Tất cả" period to include 2026-09 historical payment
+  await page.getByRole("tab", { name: "Tất cả" }).click();
+  await expect(page.getByText("85.000đ", { exact: true }).first()).toBeVisible();
+
+  // Back to "Theo tháng" and inspect an empty month -> guidance banner recovers cleanly
+  await page.getByRole("tab", { name: "Theo tháng" }).click();
+  await page.getByLabel("Tháng báo cáo").fill("2025-01");
+  await expect(page.getByText(/Chưa có khoản thu nào trong tháng 1\/2025/)).toBeVisible();
+  await page.getByRole("button", { name: /Xem tháng/ }).click();
+  await expect(page.getByText("40.000đ", { exact: true }).first()).toBeVisible();
+
+  // Search ledger and open receipt dialog
+  await page.getByPlaceholder("Tìm biển số, khách hàng, người thu...").fill("43C199999");
+  await page.getByRole("button", { name: "Chi tiết" }).click();
+  await expect(page.getByRole("dialog", { name: "Chi tiết biên lai thu tiền" })).toBeVisible();
+  await expect(page.getByRole("dialog").getByText("Trần Minh Hà")).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "Đóng", exact: true }).click();
+  await page.getByPlaceholder("Tìm biển số, khách hàng, người thu...").fill("");
+
+  // Export CSV triggers download and notice
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Xuất báo cáo" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toContain("smartpark-doanh-thu-");
+  await expect(page.getByText("Đã xuất 2 giao dịch ra tệp CSV.")).toBeVisible();
+
+  // Simulate new Staff check-out payment synced via refresh
+  raw.bookings.push({
+    id: "60000000-0000-0000-0000-000000000004",
+    customer_id: actor,
+    vehicle_id: "v-car",
+    lot_id: lot,
+    plate: "43A88888",
+    starts_at: `${today}T11:00:00`,
+    ends_at: `${today}T13:00:00`,
+    status: "completed",
+    checked_in_at: `${today}T11:00:00`,
+    checked_out_at: `${today}T13:00:00`,
+    hourly_rate: 15000,
+    free_minutes: 0,
+    amount: 50000,
+    version: 3,
+  });
+  raw.payments.push({
+    id: "payment-live",
+    booking_id: "60000000-0000-0000-0000-000000000004",
+    amount: 50000,
+    method: "cash",
+    received_by: "staff-collector",
+    paid_at: `${today}T13:00:00`,
+  });
+  await page.getByRole("button", { name: "Làm mới" }).click();
+  await expect(page.getByText("90.000đ", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("43A88888")).toBeVisible();
+});

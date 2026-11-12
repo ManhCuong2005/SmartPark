@@ -25,7 +25,10 @@ try{
   url=`postgresql://postgres@127.0.0.1:${port}/smartpark_test`;
  }
  const migrations=readdirSync(join(root,'supabase','migrations')).filter(f=>f.endsWith('.sql')).sort().map(f=>'supabase/migrations/'+f);
- for(const file of ['supabase/tests/bootstrap.sql',...migrations,'supabase/tests/behavior.sql','supabase/tests/staff_permissions.sql','supabase/tests/deadlines_and_push.sql','supabase/tests/reminder_flow.sql','supabase/tests/booking_flow.sql','supabase/tests/booking_availability.sql']){
+ const expiryPolicy='supabase/migrations/202611120008_expiry_and_extensions.sql';
+ // Verify the historical grace-period behavior before the policy change, then
+ // verify deletion and extensions against the final schema. Never rewrite old migrations.
+ for(const file of ['supabase/tests/bootstrap.sql',...migrations.filter(f=>f<expiryPolicy),'supabase/tests/behavior.sql','supabase/tests/staff_permissions.sql','supabase/tests/deadlines_and_push.sql','supabase/tests/reminder_flow.sql','supabase/tests/booking_flow.sql','supabase/tests/booking_availability.sql','supabase/tests/paid_checkout.sql',...migrations.filter(f=>f>=expiryPolicy),'supabase/tests/expiry_and_extensions.sql']){
   run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-f',join(root,file)]);console.log(`PASS ${file}`);
  }
  const reservation=n=>`begin; set local role authenticated;

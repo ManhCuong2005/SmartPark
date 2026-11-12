@@ -56,15 +56,11 @@ void main() {
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
   });
   test(
-    'late admission preserves duration and the no-show boundary is end + 1h',
+    'no-show boundary is the scheduled end; early admission preserves the end',
     () {
       final start = DateTime(2026, 11, 12, 14),
           end = DateTime(2026, 11, 12, 16);
-      final arrival = DateTime(2026, 11, 12, 16, 1);
-      final period = admissionPeriod(start, end, arrival);
-      expect(period.start, arrival);
-      expect(period.end, DateTime(2026, 11, 12, 18, 1));
-      expect(noShowDeadline(end), DateTime(2026, 11, 12, 17));
+      expect(noShowDeadline(end), DateTime(2026, 11, 12, 16));
       expect(admissionPeriod(start, end, start).end, end);
       expect(
         admissionPeriod(
@@ -152,7 +148,7 @@ void main() {
   );
 
   test(
-    'offline late admission projects shifted end; expired grace never queues',
+    'offline valid admission preserves the end; expired tickets never queue',
     () async {
       final backend = TestRepository(offline: true, staff: true);
       final state = ParkController(backend, monitorConnectivity: false);
@@ -167,8 +163,7 @@ void main() {
             ...b,
             'starts_at':
                 now.subtract(const Duration(minutes: 121)).toIso8601String(),
-            'ends_at':
-                now.subtract(const Duration(minutes: 1)).toIso8601String(),
+            'ends_at': now.add(const Duration(hours: 2)).toIso8601String(),
           },
         ],
       });
@@ -177,10 +172,9 @@ void main() {
           TicketIdentity(b['id'] as String, b['qr_token'] as String).encoded;
       await state.staffAction(true, b['plate'] as String);
       expect(state.ticket!['status'], 'parked');
-      final actual = DateTime.parse(state.ticket!['checked_in_at'] as String);
       expect(
-        DateTime.parse(state.ticket!['ends_at'] as String).difference(actual),
-        const Duration(hours: 2),
+        DateTime.parse(state.ticket!['ends_at'] as String),
+        now.add(const Duration(hours: 2)),
       );
       backend.queued.clear();
       state.operations = [];

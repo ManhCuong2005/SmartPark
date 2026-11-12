@@ -154,7 +154,7 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     final heldUntil = noShowDeadline(until);
     final hold =
         conflict['status'] == 'confirmed'
-            ? 'Giữ chỗ đến ${clock(TimeOfDay.fromDateTime(heldUntil))} ${displayDate(heldUntil)} nếu chưa nhận xe. '
+            ? 'Vé chưa dùng sẽ bị xóa lúc ${clock(TimeOfDay.fromDateTime(heldUntil))} ${displayDate(heldUntil)}. '
             : '';
     return 'Xe ${vehicle.plate} $label tại ${conflict['lot_name']}, ô ${conflict['slot_code']}, '
         'từ ${clock(TimeOfDay.fromDateTime(from))} ${displayDate(from)} đến '
@@ -324,6 +324,12 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
           ...projected,
           'status': 'completed',
           'checked_out_at': op.payload['occurred_at'],
+          'amount': calculateFee(
+            DateTime.parse(projected['checked_in_at'] as String),
+            DateTime.parse(op.payload['occurred_at'] as String),
+            projected['hourly_rate'] as int,
+            projected['free_minutes'] as int,
+          ),
           'version': (projected['version'] as int) + 1,
           'local_pending': true,
         };
@@ -379,6 +385,8 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
           availabilityVehicleConflict = null;
           _bookingPayload = null;
           _bookingOperation = null;
+          _extensionOperation = null;
+          _extensionPayload = null;
           _availabilityLot = null;
           _availabilityRequest++;
           availabilityLoading = false;
@@ -683,6 +691,15 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
       }
       rethrow;
     }
+    if (result['deleted'] == true) {
+      _bookingPayload = null;
+      _bookingOperation = null;
+      await refresh();
+      throw const ParkFailure(
+        'Vé chưa sử dụng đã quá hạn và bị xóa. Vui lòng đặt vé mới.',
+        code: 'TICKET_EXPIRED',
+      );
+    }
     selectedBookingId = result['id'] as String;
     snapshot = ParkingSnapshot({
       ...snapshot.data,
@@ -703,6 +720,58 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
       'expected_version': booking['version'],
     });
     await refresh();
+  }
+
+  String? _extensionOperation;
+  Json? _extensionPayload;
+  Future<void> extendBooking(Json booking, DateTime newEnd) async {
+    final actor = userId;
+    if (actor == null ||
+        booking['customer_id'] != actor ||
+        booking['status'] != 'parked' ||
+        booking['local_pending'] == true) {
+      throw const ParkFailure(
+        'Chỉ gia hạn vé đang gửi đã được máy chủ xác nhận của chính bạn.',
+      );
+    }
+    final end = newEnd.toUtc().toIso8601String();
+    if (_extensionPayload?['booking_id'] != booking['id'] ||
+        _extensionPayload?['ends_at'] != end) {
+      _extensionOperation = const Uuid().v4();
+      _extensionPayload = {
+        'booking_id': booking['id'],
+        'ends_at': end,
+        'expected_version': booking['version'],
+      };
+    }
+    try {
+      final result = await backend.execute(
+        _extensionOperation!,
+        'booking.extend',
+        _extensionPayload!,
+      );
+      if (_disposed) return;
+      if (userId != actor) {
+        throw const ParkFailure(
+          'Tài khoản đã thay đổi. Vui lòng kiểm tra lại vé sau khi đăng nhập.',
+        );
+      }
+      snapshot = ParkingSnapshot({
+        ...snapshot.data,
+        'bookings': [result, ...bookings.where((b) => b['id'] != result['id'])],
+      });
+      _extensionOperation = null;
+      _extensionPayload = null;
+      _notify();
+      await refresh();
+    } on ParkFailure catch (failure) {
+      if (!failure.retryable) {
+        _extensionOperation = null;
+        _extensionPayload = null;
+        await refresh();
+      }
+      rethrow;
+    }
   }
 
   final Set<String> _vehicleSaves = {};
@@ -835,7 +904,7 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
             .firstOrNull;
     if (found == null) {
       throw const ParkFailure(
-        'Vé chưa có trong dữ liệu được cấp quyền. Kết nối mạng để tải vé.',
+        'Vé không còn hiệu lực, đã bị xóa hoặc chưa có trong dữ liệu được cấp quyền. Vui lòng kiểm tra vé và kết nối mạng.',
       );
     }
     selectedBookingId = identity.id;
@@ -843,7 +912,11 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     _notify();
   }
 
-  Future<void> staffAction(bool entering, String plate) async {
+  Future<void> staffAction(
+    bool entering,
+    String plate, {
+    DateTime? checkoutAt,
+  }) async {
     final b = ticket;
     if (b == null || scannedQr == null) {
       throw const ParkFailure('Quét QR của vé trước.');
@@ -876,20 +949,17 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     if (b['status'] != (entering ? 'confirmed' : 'parked')) {
       throw const ParkFailure('Trạng thái vé không cho phép thao tác.');
     }
-    final observed = DateTime.now().toUtc();
+    final observed =
+        (entering ? DateTime.now() : checkoutAt ?? DateTime.now()).toUtc();
     if (entering &&
         (observed.isBefore(
               DateTime.parse(
                 b['starts_at'] as String,
               ).subtract(const Duration(minutes: 15)),
             ) ||
-            !observed.isBefore(
-              DateTime.parse(
-                b['ends_at'] as String,
-              ).add(const Duration(hours: 1)),
-            ))) {
+            !observed.isBefore(DateTime.parse(b['ends_at'] as String)))) {
       throw const ParkFailure(
-        'Chỉ nhận xe từ 15 phút trước giờ vào đến trước 1 tiếng sau giờ ra dự kiến.',
+        'Chỉ nhận xe từ 15 phút trước giờ vào đến trước giờ ra dự kiến. Vé quá hạn không được check-in.',
       );
     }
     await _queue(entering ? 'staff.check_in' : 'staff.check_out', {
@@ -935,8 +1005,21 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (_networkAvailable && _foreground && !hasDependencies) {
       try {
-        await backend.execute(command.id, kind, payload);
+        final result = await backend.execute(command.id, kind, payload);
         if (userId != actor) return;
+        // Retain the acknowledged amount even if the following snapshot fetch
+        // fails. A successful cash collection must not revert to cached 0đ.
+        if (kind.startsWith('staff.') &&
+            result['id'] == payload['booking_id'] &&
+            result['status'] != null) {
+          snapshot = ParkingSnapshot({
+            ...snapshot.data,
+            'bookings': [
+              result,
+              ...bookings.where((b) => b['id'] != result['id']),
+            ],
+          });
+        }
         await backend.discard(command.id);
         operations = await backend.pending();
         await refresh();
@@ -979,6 +1062,8 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     }
     await deviceNotifications?.unregister();
     await backend.signOut();
+    _extensionOperation = null;
+    _extensionPayload = null;
     snapshot = ParkingSnapshot.empty;
     availabilityRows = [];
     availabilityVehicleConflict = null;

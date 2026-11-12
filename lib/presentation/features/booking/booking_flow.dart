@@ -187,7 +187,7 @@ class TimeSelectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Ô được giữ thêm 1 giờ sau giờ ra dự kiến nếu bạn chưa đến. Chỗ trống được kiểm tra cả khoảng giữ thêm này. Phí tính theo thời gian thực tế ở bãi.',
+                'Nếu chưa check-in trước giờ ra dự kiến, vé sẽ bị xóa và QR hết hiệu lực. Phí tính theo thời gian thực tế ở bãi.',
               ),
             ],
           ),
@@ -243,7 +243,7 @@ class BookingConfirmationScreen extends StatelessWidget {
               const ParkCard(
                 color: ParkColors.paleBlue,
                 child: Txt(
-                  'Có thể hủy trước giờ vào. Nếu chưa đến, vé tự hủy sau 1 tiếng kể từ giờ ra dự kiến. Đến trễ chỉ được nhận khi ô đỗ và lịch tiếp theo còn phù hợp.',
+                  'Có thể hủy trước giờ vào. Nếu chưa check-in trước giờ ra dự kiến, vé sẽ bị xóa và không thể dùng để vào bãi.',
                   color: ParkColors.blue,
                 ),
               ),

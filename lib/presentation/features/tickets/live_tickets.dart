@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../park_controller.dart';
 import '../../../shared/widgets/park_widgets.dart';
+import 'booking_extension_sheet.dart';
 
 class TicketScreen extends StatelessWidget {
   const TicketScreen({super.key, required this.repository});
@@ -122,6 +123,30 @@ class TicketScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (b['status'] == 'parked' && b['local_pending'] != true)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 18),
+                    child: ParkButton(
+                      'Gia hạn thời gian',
+                      onPressed: () async {
+                        final extended = await showModalBottomSheet<bool>(
+                          context: context,
+                          isScrollControlled: true,
+                          builder:
+                              (_) => BookingExtensionSheet(
+                                repository: repository,
+                                booking: b,
+                              ),
+                        );
+                        if (extended == true && context.mounted) {
+                          showMessage(
+                            context,
+                            'Gia hạn thành công. Giờ ra dự kiến đã được cập nhật.',
+                          );
+                        }
+                      },
+                    ),
+                  ),
                 if (b['status'] == 'confirmed')
                   Padding(
                     padding: const EdgeInsets.only(top: 18),

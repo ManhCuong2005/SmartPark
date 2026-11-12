@@ -11,13 +11,14 @@ Không có service account/service-role key trong app.
 
 ## Hành vi
 
-- `confirmed`, chưa check-in, giờ máy chủ >= `ends_at`: chuyển `expired` (Hết hạn ·
-  Chưa sử dụng) vào lịch sử đã kết thúc, không thu phí, không tạo payment hay
-  check-out giả. Chủ bãi thấy “Hết hạn” và chỗ được giải phóng.
+- Theo migration 008: `confirmed` chưa check-in, giờ máy chủ >= `ends_at`: chặn
+  check-in ngay và xóa hẳn vé chưa dùng, không thu phí, không tạo payment hoặc
+  check-out giả. Không còn trong lịch sử; ô được giải phóng.
 - `parked`: giữ đang gửi cho đến khi nhân viên check-out thật; phí tiếp tục tính
   theo giờ thực tế, không tự chuyển hoàn thành khi quá giờ dự kiến.
-- Đang gửi và còn <=30 phút trước giờ lấy xe: một thông báo `pickup_soon`.
-  Nếu mới check-in khi còn dưới 30 phút, nhắc trong lượt chạy kế tiếp.
+- Đang gửi và còn <=10 phút trước giờ lấy xe: một thông báo `pickup_soon` hướng
+  dẫn ra đúng giờ hoặc mở vé để gia hạn. Gia hạn thành công kiểm tra lịch trống
+  và đặt lại nhắc theo giờ mới; worker bỏ nhắc theo giờ cũ chưa được gửi.
 - Quá giờ nhưng vẫn `parked`: một thông báo `pickup_overdue`, không nhắc lặp mỗi
   phút. Inbox lưu lại; push bị bỏ nếu vé đã check-out trước lúc worker lấy job.
 - Cron chạy mỗi phút, nên đây là nhắc xấp xỉ mốc giờ. FCM/Internet/OS có thể làm

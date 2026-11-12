@@ -6,16 +6,15 @@
   Các nút +1h/+2h/+4h/+8h đặt thời lượng tính từ giờ vào; tự chuyển ngày khi qua đêm.
 - Xe đang đỗ hôm nay chỉ chặn lịch tương lai nếu khoảng đỗ dự kiến giao nhau.
   Xe chưa ra dù quá giờ vẫn chặn đặt ngay và check-in vào cùng ô.
-- Vé chưa vào bãi được giữ thêm **1 tiếng sau giờ kết thúc dự kiến**. Khoảng giữ
-  thêm cũng được xét khi tìm và đặt chỗ, kể cả với lịch kế tiếp của cùng xe.
-- Ví dụ 14h–16h: trước 17h vẫn có thể check-in; từ 17h vé tự hết hạn, không thu
-  phí, không tạo check-out giả. Trạng thái lưu là `expired` để tương thích lịch sử
-  và Admin hiện có. Vé của xe đã check-in không bao giờ tự hủy.
-- Nếu đến từ giờ kết thúc trở đi và vẫn trong hạn nhận, dời giờ vào theo lúc đến
-  và giữ nguyên thời lượng đặt. Ví dụ đến 16h01 với vé 14h–16h: lịch mới là
-  16h01–18h01. Máy chủ từ chối nếu ô còn xe hoặc lịch mới trùng một vé khác;
-  giao dịch thất bại giữ nguyên vé, không tự di chuyển hay hủy vé của khách khác.
-- Tính phí từ check-in thực tế đến check-out, giữ nguyên bảng giá và phút miễn phí.
+- Theo lựa chọn mới tại migration 008, vé chưa dùng hết hiệu lực ngay tại giờ ra
+  dự kiến và bị xóa khỏi DB ở lượt cron/request cleanup kế tiếp. Không giữ thêm
+  1 tiếng. Ví dụ 14h–16h: từ 16h không thể check-in, khách cần đặt vé mới.
+- Vé của xe đã check-in không tự xóa. Khách có thể gia hạn +1/+2/+4 giờ nếu ô và
+  xe không trùng lịch khác. Nhắc trước 10 phút để gia hạn hoặc ra đúng giờ; xem
+  [xóa vé và gia hạn](EXPIRY_AND_EXTENSIONS.md).
+- Tính phí từ check-in thực tế đến check-out theo đơn giá trên vé. Theo lựa chọn
+  mới ngày 12/11/2026, thu từ phút đầu, tối thiểu 1 giờ, không áp dụng phút miễn
+  phí cho check-out mới; xem [quy tắc thu tiền](CHECKOUT_PAYMENTS.md).
   Nhận sớm tối đa 15 phút, đồng thời kiểm tra khoảng nhận sớm không trùng lịch.
 - Offline hiển thị lịch đã dời với nhãn chờ máy chủ. Không phục hồi vé đã tự hủy;
   nếu cron xử lý trước khi lệnh offline được đồng bộ, nhân viên phải kiểm tra lại
@@ -62,7 +61,7 @@ nhật máy chủ, không dùng dữ liệu cũ để tô ô xanh.
 
 `test/booking_conflict_test.dart`, các HTTP contract test trong
 `test/data_integration_test.dart` và `supabase/tests/booking_availability.sql`
-kiểm tra xung đột chéo bãi, quyền xem thông tin, hold 1 tiếng, preflight, race
+kiểm tra xung đột chéo bãi, quyền xem thông tin, chính sách 005/006, preflight, race
 và mất ACK. HTTP simulator hiện có chạy SDK Supabase thật trên localhost;
 không tạo thêm workspace hoặc phụ thuộc Postman CLI để chạy bộ test dự án.
 
