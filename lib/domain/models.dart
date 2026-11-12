@@ -2,11 +2,31 @@
 typedef Json = Map<String, dynamic>;
 
 class ParkFailure implements Exception {
-  const ParkFailure(this.message, {this.retryable = false});
+  const ParkFailure(this.message, {this.retryable = false, this.code});
   final String message;
   final bool retryable;
+  final String? code;
   @override
   String toString() => message;
+}
+
+class ReservationAvailability {
+  const ReservationAvailability({required this.slots, this.vehicleConflict});
+  final List<Json> slots;
+
+  /// Only the signed-in customer's selected vehicle; never another customer's ticket.
+  final Json? vehicleConflict;
+  factory ReservationAvailability.fromJson(Json data) =>
+      ReservationAvailability(
+        slots:
+            (data['slots'] as List)
+                .map((row) => Map<String, dynamic>.from(row as Map))
+                .toList(),
+        vehicleConflict:
+            data['vehicle_conflict'] == null
+                ? null
+                : Map<String, dynamic>.from(data['vehicle_conflict'] as Map),
+      );
 }
 
 class ParkingSnapshot {

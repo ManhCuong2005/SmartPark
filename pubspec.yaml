@@ -1,7 +1,7 @@
 ﻿name: smartpark
 description: SmartPark customer and staff apps with Supabase and offline parking operations.
 publish_to: none
-version: 1.0.0+1
+version: 1.2.1+12001
 environment:
   sdk: ^3.7.0
 dependencies:
@@ -21,9 +21,13 @@ dependencies:
   image_picker: ^1.1.2
   mobile_scanner: ^6.0.7
   qr_flutter: ^4.1.0
-  flutter_map: ^8.1.0
+  flutter_map: ^8.3.2
   latlong2: ^0.9.1
   geolocator: ^13.0.2
+  url_launcher: ^6.3.1
+  firebase_core: ^3.15.2
+  firebase_messaging: ^15.2.10
+  flutter_local_notifications: 19.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

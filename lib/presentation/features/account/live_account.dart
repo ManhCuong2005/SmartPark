@@ -10,90 +10,122 @@ class VehiclesScreen extends StatelessWidget {
         plate = TextEditingController(text: old?.plate ?? '');
     String kind = old?.kind ?? 'car';
     bool isDefault = old?.isDefault ?? repository.vehicles.isEmpty;
+    bool saving = false;
     final form = GlobalKey<FormState>();
     await showDialog<void>(
       context: context,
       builder:
           (dialog) => StatefulBuilder(
             builder:
-                (dialog, set) => AlertDialog(
-                  title: Text(
-                    old == null ? 'Thêm phương tiện' : 'Sửa phương tiện',
-                  ),
-                  content: SingleChildScrollView(
-                    child: Form(
-                      key: form,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextFormField(
-                            controller: label,
-                            decoration: const InputDecoration(
-                              labelText: 'Tên phương tiện',
-                            ),
-                            validator:
-                                (v) =>
-                                    v == null || v.trim().isEmpty
-                                        ? 'Nhập tên phương tiện'
-                                        : null,
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: plate,
-                            decoration: const InputDecoration(
-                              labelText: 'Biển số',
-                            ),
-                          ),
-                          DropdownButton<String>(
-                            value: kind,
-                            isExpanded: true,
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'car',
-                                child: Text('Ô tô'),
+                (dialog, set) => PopScope(
+                  canPop: !saving,
+                  child: AlertDialog(
+                    title: Text(
+                      old == null ? 'Thêm phương tiện' : 'Sửa phương tiện',
+                    ),
+                    content: SingleChildScrollView(
+                      child: Form(
+                        key: form,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextFormField(
+                              controller: label,
+                              enabled: !saving,
+                              decoration: const InputDecoration(
+                                labelText: 'Tên phương tiện',
                               ),
-                              DropdownMenuItem(
-                                value: 'motorcycle',
-                                child: Text('Xe máy'),
+                              validator:
+                                  (v) =>
+                                      v == null || v.trim().isEmpty
+                                          ? 'Nhập tên phương tiện'
+                                          : null,
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: plate,
+                              enabled: !saving,
+                              decoration: const InputDecoration(
+                                labelText: 'Biển số',
                               ),
-                            ],
-                            onChanged: (v) => set(() => kind = v!),
-                          ),
-                          CheckboxListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Phương tiện mặc định'),
-                            value: isDefault,
-                            onChanged: (v) => set(() => isDefault = v!),
-                          ),
-                        ],
+                            ),
+                            DropdownButton<String>(
+                              value: kind,
+                              isExpanded: true,
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'car',
+                                  child: Text('Ô tô'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'motorcycle',
+                                  child: Text('Xe máy'),
+                                ),
+                              ],
+                              onChanged:
+                                  saving ? null : (v) => set(() => kind = v!),
+                            ),
+                            CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Phương tiện mặc định'),
+                              value: isDefault,
+                              onChanged:
+                                  saving
+                                      ? null
+                                      : (v) => set(() => isDefault = v!),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                    actions: [
+                      TextButton(
+                        onPressed: saving ? null : () => Navigator.pop(dialog),
+                        child: const Text('Hủy'),
+                      ),
+                      FilledButton(
+                        onPressed:
+                            saving
+                                ? null
+                                : () async {
+                                  if (saving) return;
+                                  if (!form.currentState!.validate()) return;
+                                  set(() => saving = true);
+                                  final ok = await runAction(
+                                    context,
+                                    () => repository.saveVehicle(
+                                      old: old,
+                                      label: label.text,
+                                      plate: plate.text,
+                                      kind: kind,
+                                      isDefault: isDefault,
+                                    ),
+                                    successMessage:
+                                        () =>
+                                            repository.operations.any(
+                                                  (op) =>
+                                                      op.kind == 'vehicle.save',
+                                                )
+                                                ? 'Đã lưu trên thiết bị. Sẽ tự đồng bộ khi có mạng.'
+                                                : 'Đã lưu phương tiện.',
+                                  );
+                                  if (!dialog.mounted) return;
+                                  set(() => saving = false);
+                                  if (ok) Navigator.pop(dialog);
+                                },
+                        child:
+                            saving
+                                ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Text('Lưu'),
+                      ),
+                    ],
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialog),
-                      child: const Text('Hủy'),
-                    ),
-                    FilledButton(
-                      onPressed: () async {
-                        if (!form.currentState!.validate()) return;
-                        final ok = await runAction(
-                          context,
-                          () => repository.saveVehicle(
-                            old: old,
-                            label: label.text,
-                            plate: plate.text,
-                            kind: kind,
-                            isDefault: isDefault,
-                          ),
-                          success:
-                              'Đã lưu yêu cầu. Kiểm tra hàng đợi nếu chưa có mạng.',
-                        );
-                        if (ok && dialog.mounted) Navigator.pop(dialog);
-                      },
-                      child: const Text('Lưu'),
-                    ),
-                  ],
                 ),
           ),
     );
@@ -219,6 +251,17 @@ class NotificationsScreen extends StatelessWidget {
                 'Đọc tất cả',
                 action: repository.markNotificationsRead,
               ),
+              const SizedBox(height: 12),
+              Text(repository.deviceNotificationStatus),
+              TextButton.icon(
+                onPressed:
+                    () => runAction(
+                      context,
+                      repository.enableDeviceNotifications,
+                    ),
+                icon: const Icon(Icons.notifications_outlined),
+                label: const Text('Bật thông báo trên điện thoại'),
+              ),
               if (repository.notifications.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(24),
@@ -229,6 +272,18 @@ class NotificationsScreen extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 16),
                   child: ParkCard(
                     child: ListTile(
+                      onTap: () {
+                        final booking = n['booking_id'];
+                        if (booking is String &&
+                            repository.bookings.any(
+                              (b) => b['id'] == booking,
+                            )) {
+                          repository.update(
+                            () => repository.selectedBookingId = booking,
+                          );
+                          Navigator.pushNamed(context, '/tickets/qr');
+                        }
+                      },
                       contentPadding: EdgeInsets.zero,
                       leading: Icon(
                         n['read'] == true

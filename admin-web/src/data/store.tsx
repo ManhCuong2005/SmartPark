@@ -344,6 +344,10 @@ function message(e: unknown) {
     return "Dữ liệu đã thay đổi trên thiết bị khác. Tải lại trước khi sửa.";
   if (text.includes("USER_MUST_REGISTER_FIRST"))
     return "Nhân viên cần đăng ký tài khoản trong app trước khi phân công.";
+  if (text.includes("USER_EMAIL_NOT_CONFIRMED"))
+    return "Tài khoản này chưa xác nhận email. Hãy xác nhận email trước khi cấp quyền nhân viên.";
+  if (text.includes("FORBIDDEN"))
+    return "Bạn chỉ có thể cấp hoặc thu hồi quyền nhân viên tại bãi do mình quản lý.";
   return text;
 }
 export function useAdmin() {

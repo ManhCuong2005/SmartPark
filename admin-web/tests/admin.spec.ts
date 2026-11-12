@@ -26,7 +26,7 @@ function session() {
 }
 async function connect(
   page: Page,
-  { loggedIn = true, owner = true, conflict = false } = {},
+  { loggedIn = true, owner = true, conflict = false, staffError = "" } = {},
 ) {
   const raw: Record<string, any> = {
     server_time: new Date().toISOString(),
@@ -114,6 +114,11 @@ async function connect(
         return route.fulfill({ json: session() });
       if (name === "park_snapshot") return route.fulfill({ json: raw });
       calls.push({ name, params });
+      if (name === "manage_staff" && staffError)
+        return route.fulfill({
+          status: 400,
+          json: { code: "P0001", message: staffError },
+        });
       if (conflict)
         return route.fulfill({
           status: 400,
@@ -150,6 +155,29 @@ async function connect(
           free_minutes: params.p_free_minutes,
           version: 2,
         });
+      if (name === "manage_staff") {
+        let person = raw.profiles.find((p: any) => p.email === params.p_email);
+        if (!person) {
+          person = {
+            id: "staff-user",
+            email: params.p_email,
+            name: "Nhân viên kiểm thử",
+            role: "staff",
+          };
+          raw.profiles.push(person);
+        }
+        const membership = raw.memberships.find(
+          (s: any) => s.user_id === person.id && s.lot_id === params.p_lot_id,
+        );
+        const value = {
+          user_id: person.id,
+          lot_id: params.p_lot_id,
+          shift: params.p_shift,
+          active: params.p_active,
+        };
+        if (membership) Object.assign(membership, value);
+        else raw.memberships.push(value);
+      }
       return route.fulfill({ json: null });
     },
   );
@@ -229,6 +257,122 @@ test("price updates carry expected version and conflicts never report success", 
   ).toBeVisible();
   expect(calls[0].params.p_expected_version).toBe(1);
   await expect(page.getByText("Đã lưu bảng giá trên Supabase.")).toHaveCount(0);
+});
+
+test("owner grants staff access by registered email and selected parking lot", async ({
+  page,
+}) => {
+  const { calls } = await connect(page);
+  await page.goto("/staff");
+  await page
+    .getByRole("button", { name: "+ Cấp quyền nhân viên", exact: true })
+    .click();
+  await page.getByLabel("Email nhân viên").fill("STAFF@TEST.INVALID");
+  await page.getByLabel("Ca làm việc").selectOption("afternoon");
+  await page
+    .getByRole("button", { name: "Cấp quyền và phân công", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(calls).toEqual([
+    {
+      name: "manage_staff",
+      params: {
+        p_lot_id: lot,
+        p_email: "staff@test.invalid",
+        p_shift: "afternoon",
+        p_active: true,
+      },
+    },
+  ]);
+  await expect(
+    page.getByRole("cell", { name: "staff@test.invalid", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Đã cấp quyền nhân viên và phân công bãi.", { exact: true }),
+  ).toBeVisible();
+});
+
+test("owner revokes access without changing employee or lot identity", async ({
+  page,
+}) => {
+  const { raw, calls } = await connect(page);
+  raw.profiles.push({
+    id: "staff-user",
+    email: "staff@test.invalid",
+    name: "Nhân viên kiểm thử",
+    role: "staff",
+  });
+  raw.memberships.push({
+    user_id: "staff-user",
+    lot_id: lot,
+    shift: "night",
+    active: true,
+  });
+  await page.goto("/staff");
+  await page.getByRole("button", { name: "Phân công", exact: true }).click();
+  await expect(page.getByLabel("Email nhân viên")).toHaveAttribute(
+    "readonly",
+    "",
+  );
+  await expect(page.getByLabel("Bãi phân công")).toBeDisabled();
+  await page.getByLabel("Cho phép làm việc tại bãi này").uncheck();
+  await page
+    .getByRole("button", { name: "Lưu phân công", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(calls[0]).toEqual({
+    name: "manage_staff",
+    params: {
+      p_lot_id: lot,
+      p_email: "staff@test.invalid",
+      p_shift: "night",
+      p_active: false,
+    },
+  });
+  await expect(page.getByText("Tạm ngưng", { exact: true })).toBeVisible();
+});
+
+for (const [error, message] of [
+  [
+    "USER_MUST_REGISTER_FIRST",
+    "Nhân viên cần đăng ký tài khoản trong app trước khi phân công.",
+  ],
+  [
+    "USER_EMAIL_NOT_CONFIRMED",
+    "Tài khoản này chưa xác nhận email. Hãy xác nhận email trước khi cấp quyền nhân viên.",
+  ],
+])
+  test(`staff grant keeps form open on ${error}`, async ({ page }) => {
+    await connect(page, { staffError: error });
+    await page.goto("/staff");
+    await page
+      .getByRole("button", { name: "+ Cấp quyền nhân viên", exact: true })
+      .click();
+    await page.getByLabel("Email nhân viên").fill("staff@test.invalid");
+    await page
+      .getByRole("button", { name: "Cấp quyền và phân công", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText(message);
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(
+      page.getByText("Đã cấp quyền nhân viên và phân công bãi.", {
+        exact: true,
+      }),
+    ).toHaveCount(0);
+  });
+
+test("staff grant requires an owned parking lot", async ({ page }) => {
+  const { raw } = await connect(page);
+  raw.lots = [];
+  await page.goto("/staff");
+  await expect(
+    page.getByRole("button", { name: "+ Cấp quyền nhân viên", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText(
+      "Tạo bãi đỗ trước để cấp quyền nhân viên làm việc tại bãi đó.",
+    ),
+  ).toBeVisible();
 });
 for (const width of [390, 768, 1440])
   for (const route of [

@@ -1,3 +1,4 @@
+export 'booking_history_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../park_controller.dart';
@@ -131,101 +132,6 @@ class TicketScreen extends StatelessWidget {
                           await repository.cancelBooking(b);
                         }
                       },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class TicketHistoryScreen extends StatefulWidget {
-  const TicketHistoryScreen({super.key, required this.repository});
-  final ParkController repository;
-  @override
-  State<TicketHistoryScreen> createState() => _TicketHistoryScreenState();
-}
-
-class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
-  bool active = true;
-  @override
-  Widget build(BuildContext context) {
-    final repo = widget.repository;
-    final rows =
-        repo.bookings
-            .where(
-              (b) =>
-                  b['customer_id'] == repo.userId &&
-                  (['confirmed', 'parked'].contains(b['status']) == active),
-            )
-            .toList();
-    return ParkPage(
-      bottom: const ParkBottomNav(active: 2),
-      child: Column(
-        children: [
-          const PageHeading('Lịch sử đặt chỗ', back: false),
-          Padding(
-            padding: const EdgeInsets.all(22),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Pill(
-                        'Đang hoạt động',
-                        selected: active,
-                        onTap: () => setState(() => active = true),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Pill(
-                        'Đã kết thúc',
-                        selected: !active,
-                        onTap: () => setState(() => active = false),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                if (rows.isEmpty) const Text('Chưa có vé trong danh sách này.'),
-                for (final b in rows)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: ParkCard(
-                      onTap: () {
-                        repo.update(
-                          () => repo.selectedBookingId = b['id'] as String,
-                        );
-                        Navigator.pushNamed(context, '/tickets/qr');
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            repo.lots
-                                    .where((l) => l.id == b['lot_id'])
-                                    .firstOrNull
-                                    ?.name ??
-                                '',
-                          ),
-                          const SizedBox(height: 8),
-                          Txt(
-                            b['plate'] as String,
-                            size: 19,
-                            weight: FontWeight.w700,
-                          ),
-                          Text(statusLabel(b['status'] as String)),
-                          Text(
-                            DateTime.parse(
-                              b['starts_at'] as String,
-                            ).toLocal().toString(),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
               ],

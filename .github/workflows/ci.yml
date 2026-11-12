@@ -70,3 +70,12 @@ jobs:
         with:
           node-version: "24"
       - run: node tools/test_backend.mjs --url postgresql://postgres:test-only@127.0.0.1:5432/smartpark_test
+  push-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: node --test tools/push_dispatcher.test.mjs
+      - run: node --test tools/firebase_config.test.mjs

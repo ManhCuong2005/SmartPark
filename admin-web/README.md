@@ -32,6 +32,18 @@ minh họa SVG bãi đỗ riêng, bố cục desktop/mobile, giao diện sáng/t
 nhắc Caps Lock, trạng thái chờ/lỗi và gửi liên kết khôi phục qua Supabase Auth.
 Không hiển thị số liệu vận hành minh họa hoặc tự cấp quyền cho tài khoản.
 
-Bộ Playwright có 33 test, gồm kiểm tra đăng nhập, gửi khôi phục, chặn gửi lặp,
+Bộ Playwright có 38 test, gồm kiểm tra đăng nhập, gửi khôi phục, chặn gửi lặp,
 responsive 320–1440px, dark mode và reduced motion. HTTP được intercept trong test,
 không gửi email hoặc tạo phiên đăng nhập trên Cloud thật.
+
+## Cấp quyền nhân viên
+
+Chủ bãi vào **Nhân viên → Cấp quyền nhân viên**, nhập email tài khoản đã đăng ký
+và xác nhận, chọn bãi/ca rồi bấm **Cấp quyền và phân công**. Không cần sửa role
+bằng SQL cho từng nhân viên. Backend phải được cập nhật migration 003 trong
+`supabase/migrations/202610290003_staff_permissions.sql`.
+
+RPC chỉ cho chủ bãi quản lý phân công ở bãi của mình. Thu hồi phân công cuối
+cùng trả staff về customer; giữ nguyên owner và quyền ở bãi của chủ khác.
+Các kiểm thử mới gồm cấp quyền, thu hồi, email chưa đăng ký/chưa xác nhận và
+trường hợp chưa có bãi để phân công.

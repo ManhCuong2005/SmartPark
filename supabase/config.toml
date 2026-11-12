@@ -17,3 +17,8 @@ enable_signup = true
 [auth.email]
 enable_signup = true
 enable_confirmations = true
+
+[functions.push-dispatch]
+# The cron uses a dedicated, high-entropy secret checked inside the handler.
+# The public publishable key and authenticated users cannot run this worker.
+verify_jwt = false

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../app/providers.dart';
@@ -58,7 +59,10 @@ class _StaffScannerScreenState extends State<StaffScannerScreen>
       context,
       () => widget.repository.openTicket(raw),
     );
-    if (ok && mounted) await Navigator.pushNamed(context, '/staff/confirm');
+    if (ok && mounted) {
+      await HapticFeedback.mediumImpact();
+      if (mounted) await Navigator.pushNamed(context, '/staff/confirm');
+    }
     if (!mounted) return;
     setState(() => processing = false);
     if (supported) await scanner.start();
@@ -183,6 +187,8 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
     await runAction(context, () async {
       final result = await widget.repository.recognizePlate();
       if (result == null || !mounted) return;
+      if (result.isNotEmpty) await HapticFeedback.mediumImpact();
+      if (!mounted) return;
       setState(() {
         candidates = result;
         if (result.length == 1) plate.text = result.first;
@@ -202,6 +208,14 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
     final repo = widget.repository, b = repo.ticket;
     if (b == null) return const ParkPage(child: PageHeading('Chưa chọn vé'));
     final entering = b['status'] == 'confirmed';
+    final scheduledEnd = DateTime.parse(b['ends_at'] as String).toLocal();
+    final arrival = DateTime.now();
+    final late = entering && !arrival.isBefore(scheduledEnd);
+    final revised = admissionPeriod(
+      DateTime.parse(b['starts_at'] as String).toLocal(),
+      scheduledEnd,
+      arrival,
+    );
     final pending = repo.operations.any(
       (o) => o.payload['booking_id'] == b['id'],
     );
@@ -234,6 +248,11 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                         'Trạng thái',
                         statusLabel(b['status'] as String),
                       ),
+                      if (entering)
+                        DetailRow(
+                          'Hạn nhận xe',
+                          '${displayDate(noShowDeadline(scheduledEnd))} ${clock(TimeOfDay.fromDateTime(noShowDeadline(scheduledEnd)))}',
+                        ),
                       if (preview != null && b['status'] == 'parked')
                         DetailRow('Phí tạm tính', money(preview)),
                       if (b['status'] == 'completed' &&
@@ -243,6 +262,16 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
+                if (late) ...[
+                  ParkCard(
+                    color: ParkColors.paleBlue,
+                    child: Text(
+                      'Khách đến sau giờ ra dự kiến. Nếu còn chỗ và không trùng lịch, giờ ra sẽ dời đến ${displayDate(revised.end)} ${clock(TimeOfDay.fromDateTime(revised.end))}. Phí tính từ lúc thực tế vào bãi.',
+                      style: const TextStyle(color: ParkColors.navy),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 ParkButton(
                   recognizing ? 'Đang nhận diện…' : 'Chụp biển số · AI OCR',
                   onPressed: recognizing ? null : recognize,

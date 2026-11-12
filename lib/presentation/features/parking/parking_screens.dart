@@ -442,8 +442,8 @@ class _ParkingDetailScreenState extends State<ParkingDetailScreen> {
       color: Colors.white,
       bottom: BottomAction(
         child: ParkButton(
-          'Chọn chỗ đỗ xe',
-          onPressed: () => Navigator.pushNamed(context, '/booking/slots'),
+          'Đặt chỗ đỗ xe',
+          onPressed: () => Navigator.pushNamed(context, '/booking/time'),
         ),
       ),
       child: Column(

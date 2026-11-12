@@ -82,7 +82,7 @@ reset role;
 select public.test_assert((select count(*)=1 and sum(amount)=15000 from public.payments),'one payment despite repeated checkout');
 select public.test_assert((select count(*)=2 from public.parking_events),'one checkin and one checkout event');
 select public.test_assert((select status='completed' and version=3 from public.bookings limit 1),'valid state machine');
-select public.test_assert((select count(*)=11 from pg_class where relnamespace='public'::regnamespace and relkind='r' and relrowsecurity),'RLS enabled on every application table');
+select public.test_assert((select count(*)=13 from pg_class where relnamespace='public'::regnamespace and relkind='r' and relrowsecurity),'RLS enabled on every application table');
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000005',true);
 set local role authenticated;
 select public.test_assert((select count(*)=0 from public.payments),'unrelated owner cannot read revenue');

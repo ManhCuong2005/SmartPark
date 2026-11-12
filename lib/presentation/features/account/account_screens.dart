@@ -169,15 +169,30 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 13),
                         Expanded(
-                          child: Txt(
-                            [
-                              'Thông tin cá nhân',
-                              'Phương tiện của tôi',
-                              'Đồng bộ dữ liệu',
-                              'Thông báo',
-                              'Trung tâm trợ giúp',
-                            ][i],
-                            size: 14,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Txt(
+                                [
+                                  'Thông tin cá nhân',
+                                  'Phương tiện của tôi',
+                                  'Trạng thái đồng bộ',
+                                  'Thông báo',
+                                  'Trung tâm trợ giúp',
+                                ][i],
+                                size: 14,
+                              ),
+                              if (i == 2) ...[
+                                const SizedBox(height: 4),
+                                Txt(
+                                  repository.operations.isEmpty
+                                      ? 'Tự động khi có kết nối mạng'
+                                      : '${repository.operations.length} thao tác đang chờ xử lý',
+                                  size: 11,
+                                  color: ParkColors.muted,
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         const FigmaAsset(

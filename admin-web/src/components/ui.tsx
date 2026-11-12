@@ -109,7 +109,9 @@ export function Badge({
       ? "green"
       : ["Sắp đầy", "Chờ đến", "Sắp vào ca"].includes(label)
         ? "amber"
-        : ["Hoàn thành", "Nghỉ ca", "Tạm ngưng", "Đã hủy"].includes(label)
+        : ["Hoàn thành", "Nghỉ ca", "Tạm ngưng", "Đã hủy", "Hết hạn"].includes(
+              label,
+            )
           ? "gray"
           : "blue");
   return <span className={`badge ${color}`}>{children}</span>;

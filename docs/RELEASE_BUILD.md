@@ -43,6 +43,16 @@ Build release không có key.properties sẽ thất bại, không tự dùng deb
 - Workflow ký chỉ lưu build bằng Actions artifacts trong 7 ngày, không tạo GitHub
   Release, không upload Play Store, không triển khai production. Quyền contents chỉ read.
 
-Pipeline chưa chạy trên GitHub trong phiên này; chưa có keystore để xác minh chữ
-ký release thật. Cấu hình Fastlane chưa được thực thi cục bộ vì máy chưa có Ruby.
-Không coi APK debug đã build thành công là bằng chứng release đã được ký.
+Hai flavor APK release đã build và xác minh chữ ký bằng Android apksigner tại máy.
+Cấu hình Fastlane/AAB và workflow ký trên GitHub chưa được xác minh trong phiên
+này; không suy ra các pipeline đó đã qua chỉ từ APK cục bộ.
+
+Lần sửa bản đồ tăng version thành `1.0.1+2`. Build trực tiếp sau khi có key.properties:
+
+```powershell
+flutter build apk --release --flavor customer -t lib/main.dart
+flutter build apk --release --flavor staff -t lib/main_staff.dart
+```
+
+APK nằm trong `build/app/outputs/flutter-apk/`. Bản đồ không cần migration SQL mới;
+cài APK mới để nhận bản sửa. Cấu hình tile và cache được ghi tại [MAPS.md](MAPS.md).

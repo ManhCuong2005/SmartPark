@@ -64,6 +64,11 @@ app.*.map.json
 /web/drift_worker.dart.js*
 /web/drift_worker.dart.js.deps
 /config/*.local.json
+/android/app/google-services.json
+/android/app/src/customer/google-services.json
+/android/app/src/staff/google-services.json
+**/*service-account*.json
+/supabase/.env*
 
 # Transient Figma MCP context and capability URLs (assets are already local)
 /docs/figma/*.txt

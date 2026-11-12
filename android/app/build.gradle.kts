@@ -7,6 +7,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Optional until Firebase is configured. Use matching files for both flavors;
+// see docs/NOTIFICATIONS.md. A root file containing both clients also works.
+if (file("google-services.json").exists() ||
+    file("src/customer/google-services.json").exists() ||
+    file("src/staff/google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 val signingProperties = Properties()
 val signingFile = rootProject.file("key.properties")
 if (signingFile.exists()) signingFile.inputStream().use { signingProperties.load(it) }
@@ -17,6 +25,7 @@ android {
     ndkVersion = "27.0.12077973"
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -77,4 +86,8 @@ gradle.taskGraph.whenReady {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

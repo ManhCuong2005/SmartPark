@@ -10,13 +10,24 @@ abstract interface class ParkingRepository {
   Future<void> resetPassword(String email);
   Future<ParkingSnapshot?> cachedSnapshot();
   Future<ParkingSnapshot> refresh();
-  Future<List<Json>> availability(String lotId, DateTime start, DateTime end);
+  Future<ReservationAvailability> availability(
+    String lotId,
+    DateTime start,
+    DateTime end, {
+    String? vehicleId,
+  });
   Future<Json> execute(String id, String kind, Json payload);
   Future<void> enqueue(PendingOperation operation);
   Future<List<PendingOperation>> pending();
+
+  /// Terminal rejections of editable data, retained as notices, never replayed.
+  Future<List<PendingOperation>> rejected();
   Future<void> discard(String id);
   Future<void> retry(String id);
-  Future<void> synchronize();
+
+  /// A restored connection can bypass transient retry delays, never conflicts.
+  /// Returns true when at least one command was acknowledged by the server.
+  Future<bool> synchronize({bool retryPendingNow = false});
   Stream<void> get changes;
   void subscribe();
   Future<void> dispose();

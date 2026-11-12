@@ -10,8 +10,15 @@ biểu đồ được điều chỉnh để thể hiện dữ liệu, trạng th
 
 ## Chuẩn bị backend
 
-Xem [thiết lập Supabase và tài khoản](docs/SUPABASE_SETUP.md). Migration 001 đã được
-chủ project xác nhận chạy thành công, cùng migration 002; cần đăng ký và cấp tài khoản owner.
+Xem [thiết lập Supabase và tài khoản](docs/SUPABASE_SETUP.md). Chủ project đã xác
+nhận chạy migration 001/002/004 và `supabase/setup-reminder-scheduler.sql` trên
+Cloud. Không chạy lại migration; kiểm tra lượt chạy Cron và luồng nhắc thật.
+Chạy 003 nếu chưa có để cập nhật cấp/thu hồi quyền nhân viên trong Admin.
+Luồng đặt chỗ mới cần **005/006** sau 004. Đã áp dụng và xác minh hai bản này
+trên Cloud ngày 12/11/2026; không chạy lại ở project hiện tại. Xem
+[đặt trước, check-in trễ và hạn tự hủy](docs/BOOKING_FLOW.md).
+Push Android cấu hình riêng theo [hướng dẫn thông báo](docs/NOTIFICATIONS.md). Có thể nạp
+[dữ liệu mẫu ba vai trò](supabase/SEED_DEMO.md) sau khi đăng ký/xác nhận tài khoản.
 Không chạy fixture trong `supabase/tests` lên Cloud.
 
 ## Chạy trên Windows
@@ -45,6 +52,8 @@ npm.cmd run dev
 
 - [Kiến trúc, đồng bộ và quy tắc nghiệp vụ](docs/ARCHITECTURE.md).
 - [Kiểm thử tự động và checklist thiết bị](docs/TESTING.md).
+- [Bản đồ, cache và cấu hình dịch vụ tile](docs/MAPS.md).
+- [Hạn vé, nhắc lấy xe và cấu hình Firebase sau](docs/NOTIFICATIONS.md).
 - [Build/ký Android bằng Fastlane và GitHub Actions](docs/RELEASE_BUILD.md).
 - [Trạng thái triển khai và giới hạn kiểm chứng](docs/IMPLEMENTATION_STATUS.md).
 

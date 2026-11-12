@@ -638,6 +638,12 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                       ],
                     ),
+                    TextButton.icon(
+                      onPressed:
+                          () => Navigator.pushNamed(context, '/parking/map'),
+                      icon: const Icon(Icons.map_outlined, size: 18),
+                      label: const Text('Xem bản đồ'),
+                    ),
                   ],
                 ],
               ),

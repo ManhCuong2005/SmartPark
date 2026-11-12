@@ -40,6 +40,26 @@ void validateReservation(DateTime start, DateTime end, DateTime now) {
   }
 }
 
+DateTime noShowDeadline(DateTime scheduledEnd) =>
+    scheduledEnd.add(const Duration(hours: 1));
+
+/// A late arrival keeps the purchased duration; early admission reserves the
+/// actual arrival too. The server must approve the resulting interval atomically.
+({DateTime start, DateTime end}) admissionPeriod(
+  DateTime scheduledStart,
+  DateTime scheduledEnd,
+  DateTime arrival,
+) =>
+    !arrival.isBefore(scheduledEnd)
+        ? (
+          start: arrival,
+          end: arrival.add(scheduledEnd.difference(scheduledStart)),
+        )
+        : (
+          start: arrival.isBefore(scheduledStart) ? arrival : scheduledStart,
+          end: scheduledEnd,
+        );
+
 bool isTransientCode(String? code) =>
     code == null ||
     code.startsWith('08') ||
@@ -65,7 +85,11 @@ String backendMessage(String code) {
     'VERSION_CONFLICT':
         'Dữ liệu đã thay đổi trên thiết bị khác. Tải lại và kiểm tra thao tác.',
     'SLOT_UNAVAILABLE': 'Chỗ đỗ không còn khả dụng. Vui lòng chọn lại.',
-    '23P01': 'Khoảng giờ này đã có người đặt. Vui lòng chọn lại.',
+    '23P01': 'Lịch của ô đỗ hoặc phương tiện bị trùng. Vui lòng kiểm tra lại.',
+    'VEHICLE_TIME_CONFLICT':
+        'Xe này đã có vé trùng giờ. Hãy đổi xe/giờ hoặc xem vé hiện có.',
+    'SLOT_TIME_CONFLICT':
+        'Ô đỗ đã có lịch trùng khoảng giờ bạn chọn. Vui lòng chọn ô hoặc giờ khác.',
     '23505': 'Thao tác bị trùng hoặc chỗ đỗ đang được sử dụng.',
     'FORBIDDEN': 'Bạn không có quyền thực hiện thao tác ở bãi này.',
     '42501': 'Bạn không có quyền thực hiện thao tác.',
@@ -76,7 +100,12 @@ String backendMessage(String code) {
     'CLOCK_REVIEW_REQUIRED':
         'Thời gian thiết bị cần được kiểm tra bởi chủ bãi.',
     'VEHICLE_IN_USE':
-        'Phương tiện đang có vé hoạt động, chưa thể sửa biển số hoặc xóa.',
+        'Xe đang có vé đặt chỗ hoặc đang gửi trong bãi. Hãy kết thúc lượt gửi hoặc hủy vé trước khi đổi biển số, loại xe hoặc xóa xe.',
+    'VEHICLE_NOT_FOUND':
+        'Phương tiện không còn tồn tại. Vui lòng tải lại danh sách xe.',
+    'INVALID_TIME': 'Thời gian đặt chỗ không hợp lệ. Vui lòng chọn lại.',
+    'SLOT_IN_USE': 'Vị trí đang có vé hoạt động, chưa thể tắt vị trí này.',
+    'LOT_UNAVAILABLE': 'Bãi đỗ hiện không nhận đặt chỗ.',
     'TICKET_NOT_FOUND':
         'Không tìm thấy vé hoặc bạn chưa được phân công vào bãi.',
   };

@@ -12,7 +12,7 @@ export type Lot = {
   longitude: number | null;
 };
 export type BookingStatus =
-  "Đã xác nhận" | "Đang sử dụng" | "Hoàn thành" | "Đã hủy";
+  "Đã xác nhận" | "Đang sử dụng" | "Hoàn thành" | "Đã hủy" | "Hết hạn";
 export type Booking = {
   id: string;
   customer: string;
@@ -91,4 +91,5 @@ export const statusLabels: Record<string, BookingStatus> = {
   parked: "Đang sử dụng",
   completed: "Hoàn thành",
   cancelled: "Đã hủy",
+  expired: "Hết hạn",
 };

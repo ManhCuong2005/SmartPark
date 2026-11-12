@@ -100,11 +100,13 @@ class ParkCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(18),
     this.color = Colors.white,
+    this.borderColor,
     this.onTap,
   });
   final Widget child;
   final EdgeInsets padding;
   final Color color;
+  final Color? borderColor;
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => Material(
@@ -114,7 +116,7 @@ class ParkCard extends StatelessWidget {
             : color,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(18),
-      side: const BorderSide(color: ParkColors.line),
+      side: BorderSide(color: borderColor ?? ParkColors.line),
     ),
     clipBehavior: Clip.antiAlias,
     child: InkWell(
@@ -406,10 +408,12 @@ Future<bool> runAction(
   BuildContext context,
   Future<void> Function() action, {
   String? success,
+  String Function()? successMessage,
 }) async {
   try {
     await action();
-    if (context.mounted && success != null) showMessage(context, success);
+    final message = successMessage?.call() ?? success;
+    if (context.mounted && message != null) showMessage(context, message);
     return true;
   } catch (e) {
     if (context.mounted) showMessage(context, e.toString());
@@ -423,10 +427,12 @@ class AsyncParkButton extends StatefulWidget {
     super.key,
     required this.action,
     this.onSuccess,
+    this.enabled = true,
   });
   final String label;
   final Future<void> Function() action;
   final VoidCallback? onSuccess;
+  final bool enabled;
   @override
   State<AsyncParkButton> createState() => _AsyncParkButtonState();
 }
@@ -437,7 +443,7 @@ class _AsyncParkButtonState extends State<AsyncParkButton> {
   Widget build(BuildContext context) => ParkButton(
     busy ? 'Đang xử lý…' : widget.label,
     onPressed:
-        busy
+        busy || !widget.enabled
             ? null
             : () async {
               setState(() => busy = true);

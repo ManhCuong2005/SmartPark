@@ -11,7 +11,8 @@ class SupabaseParkingRepository implements ParkingRepository {
   final ParkingDatabase local;
   final _changes = StreamController<void>.broadcast();
   RealtimeChannel? _channel;
-  Future<void>? _syncing;
+  Future<bool>? _syncing;
+  String? _retrySyncUser;
   bool _disposed = false;
   @override
   String? get userId => client.auth.currentUser?.id;
@@ -83,25 +84,35 @@ class SupabaseParkingRepository implements ParkingRepository {
   }
 
   @override
-  Future<List<Json>> availability(
+  Future<ReservationAvailability> availability(
     String lotId,
     DateTime start,
-    DateTime end,
-  ) async {
+    DateTime end, {
+    String? vehicleId,
+  }) async {
     try {
       final rows =
           await client
                   .rpc(
-                    'slot_availability',
+                    'booking_availability',
                     params: {
                       'p_lot_id': lotId,
                       'p_start': start.toUtc().toIso8601String(),
                       'p_end': end.toUtc().toIso8601String(),
+                      'p_vehicle_id': vehicleId,
                     },
                   )
                   .timeout(const Duration(seconds: 12))
-              as List;
-      return rows.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+              as Map;
+      return ReservationAvailability.fromJson(Map<String, dynamic>.from(rows));
+    } on PostgrestException catch (e) {
+      if (e.code == 'PGRST202') {
+        throw const ParkFailure(
+          'Máy chủ chưa cập nhật kiểm tra lịch xe. Cần áp dụng migration 006 trên Supabase.',
+          code: 'BOOKING_SCHEMA_REQUIRED',
+        );
+      }
+      throw translate(e);
     } catch (e) {
       throw translate(e);
     }
@@ -149,6 +160,9 @@ class SupabaseParkingRepository implements ParkingRepository {
   Future<List<PendingOperation>> pending() async =>
       userId == null ? [] : local.pending(userId!);
   @override
+  Future<List<PendingOperation>> rejected() async =>
+      userId == null ? [] : local.rejected(userId!);
+  @override
   Future<void> discard(String id) async {
     if (userId != null) await local.remove(userId!, id);
   }
@@ -159,13 +173,44 @@ class SupabaseParkingRepository implements ParkingRepository {
   }
 
   @override
-  Future<void> synchronize() =>
-      _syncing ??= _flush().whenComplete(() => _syncing = null);
-  Future<void> _flush() async {
+  Future<bool> synchronize({bool retryPendingNow = false}) {
+    if (_disposed) return Future.value(false);
+    if (retryPendingNow) _retrySyncUser = userId;
+    return _syncing ??= _flushRequested().whenComplete(() => _syncing = null);
+  }
+
+  Future<bool> _flushRequested() async {
+    var acknowledged = false;
+    do {
+      final retryUser = _retrySyncUser;
+      _retrySyncUser = null;
+      if (retryUser != null && retryUser == userId) {
+        await local.clearRetryDelay(retryUser);
+      }
+      acknowledged = await _flush() || acknowledged;
+    } while (_retrySyncUser != null && !_disposed);
+    return acknowledged;
+  }
+
+  Future<bool> _flush() async {
     final id = userId;
-    if (id == null) return;
+    if (id == null) return false;
+    var acknowledged = false;
     for (final op in await local.pending(id)) {
       if (userId != id || _disposed) break;
+      final editable =
+          op.kind == 'vehicle.save' || op.kind == 'notifications.read';
+      if (editable && op.state == 'conflict') {
+        // Upgrade old editable-data conflicts to terminal notices. Parking
+        // observations remain reviewable conflicts so physical events are kept.
+        await local.reject(
+          id,
+          op.id,
+          op.error ?? 'Máy chủ không chấp nhận thay đổi.',
+        );
+        if (!_disposed) _changes.add(null);
+        continue;
+      }
       // Preserve command order. A conflict must be reviewed before later events.
       if (op.state == 'conflict' ||
           (op.nextAttempt?.isAfter(DateTime.now()) ?? false)) {
@@ -174,7 +219,13 @@ class SupabaseParkingRepository implements ParkingRepository {
       try {
         await execute(op.id, op.kind, op.payload);
         await local.remove(id, op.id);
+        acknowledged = true;
       } on ParkFailure catch (e) {
+        if (!e.retryable && editable) {
+          await local.reject(id, op.id, e.message);
+          if (!_disposed) _changes.add(null);
+          continue;
+        }
         await local.fail(
           id,
           op.id,
@@ -187,6 +238,7 @@ class SupabaseParkingRepository implements ParkingRepository {
         break;
       }
     }
+    return acknowledged;
   }
 
   @override
@@ -228,10 +280,20 @@ class SupabaseParkingRepository implements ParkingRepository {
           'Chưa có schema SmartPark. Hãy chạy migration trong Supabase SQL Editor.',
         );
       }
+      final code =
+          error.code == 'P0001' ||
+                  [
+                    'VEHICLE_TIME_CONFLICT',
+                    'SLOT_TIME_CONFLICT',
+                  ].contains(error.message)
+              ? error.message
+              : error.code == '23P01' &&
+                  error.message.contains('bookings_vehicle_no_overlap')
+              ? 'VEHICLE_TIME_CONFLICT'
+              : error.code ?? error.message;
       return ParkFailure(
-        backendMessage(
-          error.code == 'P0001' ? error.message : error.code ?? error.message,
-        ),
+        backendMessage(code),
+        code: code,
         retryable: isTransientCode(error.code),
       );
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../park_controller.dart';
 import '../../../shared/widgets/park_widgets.dart';
+import 'booking_availability_notice.dart';
 
 class TimeSelectionScreen extends StatelessWidget {
   const TimeSelectionScreen({super.key, required this.repository});
@@ -11,14 +12,19 @@ class TimeSelectionScreen extends StatelessWidget {
       initialTime: entering ? repository.start : repository.end,
     );
     if (time == null) return;
-    repository.update(() {
-      if (entering) {
-        repository.start = time;
-      } else {
-        repository.end = time;
-      }
-    });
-    await repository.loadAvailability();
+    final original = entering ? repository.startsAt : repository.endsAt;
+    final chosen = DateTime(
+      original.year,
+      original.month,
+      original.day,
+      time.hour,
+      time.minute,
+    );
+    final duration = repository.endsAt.difference(repository.startsAt);
+    repository.setReservationPeriod(
+      entering ? chosen : repository.startsAt,
+      entering ? chosen.add(duration) : chosen,
+    );
   }
 
   Future<void> day(BuildContext context, bool entering) async {
@@ -30,26 +36,28 @@ class TimeSelectionScreen extends StatelessWidget {
       lastDate: now.add(const Duration(days: 90)),
     );
     if (date == null) return;
-    repository.update(() {
-      if (entering) {
-        repository.date = date;
-        if (repository.endDate.isBefore(date)) repository.endDate = date;
-      } else {
-        repository.endDate = date;
-      }
-    });
-    await repository.loadAvailability();
+    final time = entering ? repository.start : repository.end;
+    final chosen = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    final duration = repository.endsAt.difference(repository.startsAt);
+    repository.setReservationPeriod(
+      entering ? chosen : repository.startsAt,
+      entering ? chosen.add(duration) : chosen,
+    );
   }
 
   @override
   Widget build(BuildContext context) => ParkPage(
     bottom: BottomAction(
-      child: ParkButton(
-        'Tiếp tục',
-        onPressed:
-            repository.durationMinutes <= 0
-                ? null
-                : () => Navigator.pushNamed(context, '/booking/confirm'),
+      child: AsyncParkButton(
+        'Tìm chỗ trống',
+        action: () => repository.prepareBooking(requireSlot: false),
+        onSuccess: () => Navigator.pushNamed(context, '/booking/slots'),
       ),
     ),
     child: Column(
@@ -62,6 +70,7 @@ class TimeSelectionScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 22),
           child: Column(
             children: [
+              BookingAvailabilityNotice(repository: repository),
               ParkCard(
                 child: Column(
                   children: [
@@ -103,6 +112,30 @@ class TimeSelectionScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Txt('Thời lượng đỗ nhanh', weight: FontWeight.w600),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final hours in [1, 2, 4, 8])
+                          ChoiceChip(
+                            label: Text('+$hours giờ'),
+                            showCheckmark: false,
+                            selected: repository.durationMinutes == hours * 60,
+                            onSelected: (_) => repository.setDuration(hours),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
               ParkCard(
                 onTap: () => Navigator.pushNamed(context, '/vehicles'),
                 child: Column(
@@ -126,10 +159,7 @@ class TimeSelectionScreen extends StatelessWidget {
                                 ),
                               )
                               .toList(),
-                      onChanged:
-                          (id) => repository.update(
-                            () => repository.selectedVehicleId = id,
-                          ),
+                      onChanged: repository.selectVehicle,
                     ),
                     TextButton(
                       onPressed:
@@ -157,7 +187,7 @@ class TimeSelectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Chỗ đỗ được kiểm tra lại khi xác nhận. Giá cuối cùng tính theo thời gian xe thực tế ở bãi.',
+                'Ô được giữ thêm 1 giờ sau giờ ra dự kiến nếu bạn chưa đến. Chỗ trống được kiểm tra cả khoảng giữ thêm này. Phí tính theo thời gian thực tế ở bãi.',
               ),
             ],
           ),
@@ -173,9 +203,10 @@ class BookingConfirmationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ParkPage(
     bottom: BottomAction(
-      child: ParkButton(
+      child: AsyncParkButton(
         'Tiếp tục',
-        onPressed: () => Navigator.pushNamed(context, '/booking/payment'),
+        action: () => bookingStep(context, repository.prepareBooking),
+        onSuccess: () => Navigator.pushNamed(context, '/booking/payment'),
       ),
     ),
     child: Column(
@@ -189,6 +220,7 @@ class BookingConfirmationScreen extends StatelessWidget {
           padding: const EdgeInsets.all(22),
           child: Column(
             children: [
+              BookingAvailabilityNotice(repository: repository),
               ParkCard(
                 child: Column(
                   children: [
@@ -211,7 +243,7 @@ class BookingConfirmationScreen extends StatelessWidget {
               const ParkCard(
                 color: ParkColors.paleBlue,
                 child: Txt(
-                  'Có thể hủy vé đã xác nhận trước giờ vào bãi.',
+                  'Có thể hủy trước giờ vào. Nếu chưa đến, vé tự hủy sau 1 tiếng kể từ giờ ra dự kiến. Đến trễ chỉ được nhận khi ô đỗ và lịch tiếp theo còn phù hợp.',
                   color: ParkColors.blue,
                 ),
               ),
@@ -231,7 +263,7 @@ class PaymentScreen extends StatelessWidget {
     bottom: BottomAction(
       child: AsyncParkButton(
         'Xác nhận đặt chỗ',
-        action: repository.book,
+        action: () => bookingStep(context, repository.book),
         onSuccess:
             () => Navigator.pushNamedAndRemoveUntil(
               context,
@@ -251,6 +283,7 @@ class PaymentScreen extends StatelessWidget {
           padding: const EdgeInsets.all(22),
           child: Column(
             children: [
+              BookingAvailabilityNotice(repository: repository),
               const ParkCard(
                 child: ListTile(
                   leading: Icon(Icons.payments),

@@ -8,7 +8,17 @@ class SupabaseSimulator {
   late HttpServer server;
   String get url => 'http://127.0.0.1:${server.port}';
   int? failureStatus;
+  int? snapshotFailureStatus;
   String failureCode = 'PGRST000';
+  String? failureMessage;
+  int? availabilityFailureStatus;
+  String availabilityFailureCode = 'PGRST202';
+  Map<String, dynamic> availabilityResponse = {
+    'slots': [],
+    'vehicle_conflict': null,
+  };
+  Map<String, dynamic>? lastAvailabilityParameters;
+  int availabilityRequests = 0;
   int mutations = 0, requests = 0;
   final receipts = <String, Map<String, dynamic>>{};
   Future<void> start() async {
@@ -44,7 +54,7 @@ class SupabaseSimulator {
           request.response.statusCode = failureStatus!;
           response = {
             'code': failureCode,
-            'message': failureCode,
+            'message': failureMessage ?? failureCode,
             'details': null,
             'hint': null,
           };
@@ -57,7 +67,27 @@ class SupabaseSimulator {
           }
           response = receipts[id]!;
         }
+      } else if (request.uri.path == '/rest/v1/rpc/booking_availability') {
+        availabilityRequests++;
+        lastAvailabilityParameters = jsonDecode(body) as Map<String, dynamic>;
+        if (availabilityFailureStatus != null) {
+          request.response.statusCode = availabilityFailureStatus!;
+          response = {
+            'code': availabilityFailureCode,
+            'message': 'Simulated availability failure',
+          };
+        } else {
+          response = availabilityResponse;
+        }
       } else if (request.uri.path == '/rest/v1/rpc/park_snapshot') {
+        if (snapshotFailureStatus != null) {
+          request.response.statusCode = snapshotFailureStatus!;
+          request.response.write(
+            jsonEncode({'code': 'PGRST000', 'message': 'Simulated offline'}),
+          );
+          await request.response.close();
+          return;
+        }
         response = {
           'profiles': [],
           'lots': [],

@@ -61,7 +61,7 @@ class ParkingDatabase extends GeneratedDatabase {
   Future<List<PendingOperation>> pending(String userId) async {
     final rows =
         await customSelect(
-          'SELECT * FROM outbox WHERE user_id=? ORDER BY sequence,id',
+          "SELECT * FROM outbox WHERE user_id=? AND state<>'rejected' ORDER BY sequence,id",
           variables: [Variable.withString(userId)],
         ).get();
     return rows
@@ -86,6 +86,34 @@ class ParkingDatabase extends GeneratedDatabase {
     'DELETE FROM outbox WHERE id=? AND user_id=?',
     [id, userId],
   );
+  Future<void> reject(
+    String userId,
+    String id,
+    String error,
+  ) => customStatement(
+    "UPDATE outbox SET state='rejected',error=?,next_attempt=NULL WHERE id=? AND user_id=?",
+    [error, id, userId],
+  );
+  Future<List<PendingOperation>> rejected(String userId) async {
+    final rows =
+        await customSelect(
+          "SELECT * FROM outbox WHERE user_id=? AND state='rejected' ORDER BY sequence DESC LIMIT 20",
+          variables: [Variable.withString(userId)],
+        ).get();
+    return rows
+        .map(
+          (row) => PendingOperation(
+            id: row.read('id'),
+            userId: userId,
+            kind: row.read('kind'),
+            payload: jsonDecode(row.read<String>('payload')) as Json,
+            state: 'rejected',
+            error: row.readNullable('error'),
+          ),
+        )
+        .toList();
+  }
+
   Future<void> fail(
     String userId,
     String id,
@@ -108,6 +136,13 @@ class ParkingDatabase extends GeneratedDatabase {
     "UPDATE outbox SET state='pending',next_attempt=NULL,error=NULL WHERE id=? AND user_id=?",
     [id, userId],
   );
+  // Only transient pending commands are made ready. Conflicts and other
+  // accounts retain their state and retry metadata.
+  Future<void> clearRetryDelay(String userId) => customStatement(
+    "UPDATE outbox SET next_attempt=NULL WHERE user_id=? AND state='pending'",
+    [userId],
+  );
+
   Future<void> clearUser(String userId) async {
     await customStatement('DELETE FROM snapshots WHERE user_id=?', [userId]);
     await customStatement('DELETE FROM outbox WHERE user_id=?', [userId]);

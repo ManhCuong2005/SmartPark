@@ -78,11 +78,15 @@ export function BookingsPage() {
             onChange={(e) => setStatus(e.target.value)}
           >
             <option value="">Tất cả trạng thái</option>
-            {["Đã xác nhận", "Đang sử dụng", "Hoàn thành", "Đã hủy"].map(
-              (s) => (
-                <option key={s}>{s}</option>
-              ),
-            )}
+            {[
+              "Đã xác nhận",
+              "Đang sử dụng",
+              "Hoàn thành",
+              "Đã hủy",
+              "Hết hạn",
+            ].map((s) => (
+              <option key={s}>{s}</option>
+            ))}
           </select>
           <input
             type="date"
@@ -224,13 +228,18 @@ export function StaffPage() {
     <>
       <PageHeading
         title="Quản lý nhân viên"
-        subtitle="Cấp quyền theo bãi. Nhân viên phải đăng ký tài khoản trước."
+        subtitle="Chuyển tài khoản đã đăng ký thành nhân viên và phân công vào bãi của bạn."
         action={
           <Button disabled={!data.lots.length} onClick={() => setEditor(null)}>
-            + Phân công nhân viên
+            + Cấp quyền nhân viên
           </Button>
         }
       />
+      {!data.lots.length && (
+        <Panel>
+          <p>Tạo bãi đỗ trước để cấp quyền nhân viên làm việc tại bãi đó.</p>
+        </Panel>
+      )}
       <Panel>
         <SearchField
           value={query}
@@ -292,15 +301,19 @@ function StaffEditor({
     [busy, setBusy] = useState(false);
   return (
     <Dialog
-      title="Phân công nhân viên"
+      title={staff ? "Quản lý quyền nhân viên" : "Cấp quyền nhân viên"}
       onClose={onClose}
       footer={
         <>
-          <Button secondary onClick={onClose}>
+          <Button secondary disabled={busy} onClick={onClose}>
             Hủy
           </Button>
           <Button disabled={busy || !lot} form="staff-editor">
-            Lưu phân công
+            {busy
+              ? "Đang lưu…"
+              : staff
+                ? "Lưu phân công"
+                : "Cấp quyền và phân công"}
           </Button>
         </>
       }
@@ -310,22 +323,27 @@ function StaffEditor({
         className="live-form"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (busy) return;
           setBusy(true);
           const ok = await command("manage_staff", {
             p_lot_id: lot,
-            p_email: email.trim(),
+            p_email: email.trim().toLowerCase(),
             p_shift: shift,
             p_active: active,
           });
           setBusy(false);
           if (ok) {
-            notice("Đã cập nhật quyền nhân viên trên máy chủ.");
+            notice(
+              active
+                ? "Đã cấp quyền nhân viên và phân công bãi."
+                : "Đã thu hồi quyền truy cập bãi.",
+            );
             onClose();
           }
         }}
       >
         <label>
-          Email đã đăng ký
+          Email tài khoản đã đăng ký và xác nhận
           <input
             aria-label="Email nhân viên"
             type="email"
@@ -369,12 +387,17 @@ function StaffEditor({
             checked={active}
             onChange={(e) => setActive(e.target.checked)}
           />{" "}
-          Cấp quyền truy cập bãi
+          Cho phép làm việc tại bãi này
         </label>
         <p>
-          Tên và email lấy từ tài khoản thật. Thu hồi quyền tại đây sẽ ngăn các
-          thao tác tiếp theo trên máy chủ, kể cả thao tác offline gửi lên sau
-          đó.
+          Khi cấp quyền, tài khoản khách hàng được chuyển thành nhân viên và có
+          thể đăng nhập ứng dụng SmartPark Staff. Email phải được xác nhận
+          trước.
+        </p>
+        <p>
+          Khi thu hồi hết phân công hoạt động ở mọi bãi, tài khoản trở về quyền
+          khách hàng. Quyền chủ bãi được giữ nguyên. Thao tác offline gửi lên
+          sau khi thu hồi cũng được máy chủ kiểm tra lại quyền.
         </p>
       </form>
     </Dialog>

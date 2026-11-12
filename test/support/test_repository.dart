@@ -109,11 +109,12 @@ class TestRepository implements ParkingRepository {
   }
 
   @override
-  Future<List<Json>> availability(
+  Future<ReservationAvailability> availability(
     String lotId,
     DateTime start,
-    DateTime end,
-  ) async => fixture().rows('slots');
+    DateTime end, {
+    String? vehicleId,
+  }) async => ReservationAvailability(slots: fixture().rows('slots'));
   @override
   Future<Json> execute(String id, String kind, Json payload) async {
     executions++;
@@ -132,6 +133,8 @@ class TestRepository implements ParkingRepository {
   @override
   Future<List<PendingOperation>> pending() async => List.of(queued);
   @override
+  Future<List<PendingOperation>> rejected() async => [];
+  @override
   Future<void> retry(String id) async {}
   @override
   Future<void> discard(String id) async {
@@ -139,7 +142,7 @@ class TestRepository implements ParkingRepository {
   }
 
   @override
-  Future<void> synchronize() async {}
+  Future<bool> synchronize({bool retryPendingNow = false}) async => false;
   @override
   Future<void> signIn(String email, String password) async {
     loggedIn = true;

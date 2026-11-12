@@ -2,6 +2,7 @@ export 'booking_flow.dart';
 import 'package:flutter/material.dart';
 import '../../park_controller.dart';
 import '../../../shared/widgets/park_widgets.dart';
+import 'booking_availability_notice.dart';
 
 class SlotGrid extends StatelessWidget {
   const SlotGrid({
@@ -103,11 +104,14 @@ class SlotLegend extends StatelessWidget {
   const SlotLegend({super.key, this.staff = false});
   final bool staff;
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget build(BuildContext context) => Wrap(
+    alignment: WrapAlignment.spaceBetween,
+    spacing: 12,
+    runSpacing: 10,
     children: List.generate(
       3,
       (i) => Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 17,
@@ -140,12 +144,12 @@ class SlotSelectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ParkPage(
     bottom: BottomAction(
-      child: ParkButton(
+      // Keep the in-flight button mounted while availability disables it.
+      child: AsyncParkButton(
         'Tiếp tục',
-        onPressed:
-            repository.slot.isEmpty
-                ? null
-                : () => Navigator.pushNamed(context, '/booking/time'),
+        enabled: repository.canContinueBooking,
+        action: () => bookingStep(context, repository.prepareBooking),
+        onSuccess: () => Navigator.pushNamed(context, '/booking/confirm'),
       ),
     ),
     child: Column(
@@ -166,25 +170,48 @@ class SlotSelectionScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Txt(
-                        '01 Chọn chỗ',
+                        '01 Thời gian',
                         size: 11,
-                        color: ParkColors.blue,
+                        color: ParkColors.muted,
                         weight: FontWeight.w600,
                       ),
                     ),
                     Expanded(
                       child: Txt(
-                        '02 Thời gian',
+                        '02 Chọn chỗ',
                         size: 11,
-                        color: ParkColors.muted,
+                        color: ParkColors.blue,
                       ),
                     ),
                     Expanded(
                       child: Txt(
-                        '03 Thanh toán',
+                        '03 Xác nhận',
                         size: 11,
                         color: ParkColors.muted,
                       ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              ParkCard(
+                color: ParkColors.paleBlue,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Txt(
+                      'Khoảng thời gian đã chọn',
+                      weight: FontWeight.w600,
+                      color: ParkColors.blue,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${displayDate(repository.date)} ${clock(repository.start)} → ${displayDate(repository.endDate)} ${clock(repository.end)}',
+                      style: const TextStyle(color: ParkColors.navy),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Đổi thời gian'),
                     ),
                   ],
                 ),
@@ -195,15 +222,46 @@ class SlotSelectionScreen extends StatelessWidget {
                 child: SlotLegend(),
               ),
               const SizedBox(height: 20),
-              SlotGrid(
-                codes:
-                    repository.slots.map((s) => s['code'] as String).toList(),
-                selected: repository.slot,
-                occupied: repository.occupied,
-                onSelect: (s) => repository.update(() => repository.slot = s),
-              ),
-              if (repository.slots.isEmpty)
-                const Text('Bãi chưa có vị trí khả dụng. Hãy tải lại dữ liệu.'),
+              if (repository.availabilityLoading)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              if (!repository.availabilityReady &&
+                  !repository.availabilityLoading)
+                ParkCard(
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Chưa kiểm tra được chỗ trống cho thời gian này. Hãy kết nối mạng và thử lại.',
+                      ),
+                      TextButton(
+                        onPressed: repository.loadAvailability,
+                        child: const Text('Thử lại'),
+                      ),
+                    ],
+                  ),
+                ),
+              BookingAvailabilityNotice(repository: repository),
+              if (repository.availabilityReady &&
+                  repository.vehicleConflict == null)
+                SlotGrid(
+                  codes:
+                      repository.bookingSlots
+                          .map((s) => s['code'] as String)
+                          .toList(),
+                  selected: repository.slot,
+                  occupied: repository.bookingOccupied,
+                  onSelect: (s) => repository.update(() => repository.slot = s),
+                ),
+              if (repository.availabilityReady &&
+                  repository.vehicleConflict == null &&
+                  !repository.bookingSlots.any(
+                    (s) => s['enabled'] == true && s['occupied'] == false,
+                  ))
+                const Text(
+                  'Không còn chỗ trống trong khoảng giờ này. Hãy chọn thời gian khác.',
+                ),
               const SizedBox(height: 28),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

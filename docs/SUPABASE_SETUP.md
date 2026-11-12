@@ -11,6 +11,19 @@ Trong SQL Editor của project phát triển SmartPark, chạy theo thứ tự:
 2. `supabase/migrations/202610280002_reservation_hardening.sql` bổ sung chống một
    phương tiện đặt nhiều vị trí trong cùng khoảng giờ và phát tín hiệu cập nhật
    chỗ trống công khai mà không lộ thông tin vé của khách khác.
+3. `supabase/migrations/202610290003_staff_permissions.sql` cập nhật RPC cấp quyền
+   nhân viên: chỉ chủ bãi được phân công tại bãi của mình, yêu cầu email đã xác
+   nhận khi cấp quyền; thu hồi phân công cuối cùng trả tài khoản staff về customer.
+
+4. `supabase/migrations/202610290004_deadlines_and_push.sql` bổ sung hạn vé,
+   nhắc lấy xe và hàng đợi push (đã có trong project hiện tại).
+5. `supabase/migrations/202611120005_booking_flow.sql` sửa đặt trước theo khoảng
+   giờ, nhận khách đến trễ và tự hủy sau 1 tiếng kể từ giờ kết thúc. Chạy trước
+   khi dùng app mới; xem [quy tắc và kiểm thử](BOOKING_FLOW.md).
+
+6. `supabase/migrations/202611120006_booking_availability.sql` đồng bộ kiểm tra
+   lịch xe/ô giữa giao diện và lệnh đặt, phân biệt hai loại xung đột và giữ receipt
+   khi retry. App mới cần RPC này, không tự fallback sang dữ liệu ô trống cũ.
 
 Mỗi migration chỉ chạy một lần. Không chạy lại 001 nếu đã thành công. Không chạy
 `supabase/tests/bootstrap.sql` hoặc `behavior.sql` trên Cloud; đó là fixture test.
@@ -19,17 +32,30 @@ cần kiểm tra các vé đó trước khi áp dụng constraint.
 
 ## Tài khoản và ba vai trò
 
-Trạng thái hiện tại: bạn đã xác nhận chạy thành công cả migration 001 và 002.
-Không cần chạy lại trên project này; các hướng dẫn migration dùng cho môi trường mới.
+Trạng thái hiện tại: bạn đã xác nhận chạy thành công migration 001/002 và ngày
+29/10/2026 xác nhận chạy 004 cùng `supabase/setup-reminder-scheduler.sql` trên
+Cloud. Không chạy lại các migration này. Chạy **003** nếu chưa chạy. Cần kiểm tra
+lịch Cron thực sự chạy và nhắc/hết hạn đúng bằng tài khoản thử; xác nhận chạy SQL
+không thay thế kiểm thử end-to-end.
+Thông báo Android cần cấu hình Firebase riêng, theo [NOTIFICATIONS.md](NOTIFICATIONS.md).
+Ngày 12/11/2026 đã áp dụng 005/006 trên project hiện tại và xác minh RPC khả dụng
+trên dữ liệu thật; giữ nguyên số vé/khoản thu. Không chạy lại hai migration này.
 
 1. Chạy ứng dụng khách, đăng ký email/mật khẩu, xác nhận email nếu Auth yêu cầu.
 2. Để tài khoản của bạn quản lý bãi, mở `supabase/bootstrap-owner.sql`, thay đúng
    email đã đăng ký, rồi chạy trong SQL Editor. Không chia sẻ mật khẩu.
 3. Đăng nhập Admin Web bằng tài khoản đó. Tạo bãi, nhập địa chỉ/tọa độ và số vị trí,
    cấu hình giá ô tô/xe máy và thời gian miễn phí.
-4. Nhân viên đăng ký tài khoản riêng trong app khách. Chủ bãi vào Nhân viên,
-   nhập email đó và phân công bãi/ca. Sau đó nhân viên đăng nhập app Staff.
+4. Nhân viên đăng ký và xác nhận email tài khoản riêng trong app khách. Chủ bãi
+   vào **Nhân viên → Cấp quyền nhân viên**, nhập email đó, chọn bãi/ca rồi bấm
+   **Cấp quyền và phân công**. RPC đổi customer thành staff và tạo phân công.
+   Sau đó nhân viên đăng nhập app Staff. Bỏ chọn **Cho phép làm việc tại bãi này**
+   trong Phân công để thu hồi quyền bãi đó. Nếu không còn phân công hoạt động
+   ở bãi nào, tài khoản trở về customer; owner không bị hạ quyền.
 5. Khách đăng ký, thêm phương tiện rồi đặt chỗ. Không có dữ liệu mẫu tự động.
+   Nếu muốn nạp dữ liệu để xem giao diện/dashboard, xem
+   [hướng dẫn nạp dữ liệu mẫu](../supabase/SEED_DEMO.md) và chạy riêng
+   `supabase/seed-demo.sql` trong SQL Editor sau migrations 001/002.
 
 Vai trò owner chỉ cấp qua thao tác quản trị tin cậy. Metadata đăng ký không thể tự
 cấp role. Membership giới hạn nhân viên theo bãi; thu hồi membership cũng làm

@@ -17,6 +17,17 @@ class SmartParkApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = ref.watch(parkControllerProvider);
+    final navigatorKey = ref.watch(appNavigatorKeyProvider);
+    final notification = repository.notificationToOpen;
+    if (notification != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (repository.notificationToOpen != notification) return;
+        repository.notificationToOpen = null;
+        if (repository.signedIn) {
+          navigatorKey.currentState?.pushNamed('/tickets/qr');
+        }
+      });
+    }
     Widget guard(Widget view, {bool staffOnly = false}) {
       if (!repository.signedIn) {
         return AuthScreen(repository: repository, staff: staffOnly || staff);
@@ -25,6 +36,34 @@ class SmartParkApp extends ConsumerWidget {
         return ParkPage(
           child: Column(
             children: [
+              if (repository.signedIn && repository.rejections.isNotEmpty)
+                Material(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              repository.rejections.first.error ??
+                                  'Thay đổi không được máy chủ chấp nhận.',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed:
+                                () => repository.discardOperation(
+                                  repository.rejections.first.id,
+                                ),
+                            child: const Text('Đã hiểu'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               const PageHeading('Chưa được phân công'),
               const Padding(
                 padding: EdgeInsets.all(24),
@@ -42,6 +81,7 @@ class SmartParkApp extends ConsumerWidget {
     }
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: staff ? 'SmartPark Staff' : 'SmartPark',
       debugShowCheckedModeBanner: false,
       theme: parkTheme(),
@@ -55,7 +95,8 @@ class SmartParkApp extends ConsumerWidget {
       builder:
           (context, child) => Column(
             children: [
-              if (repository.signedIn)
+              if (repository.signedIn &&
+                  (!repository.online || repository.error != null))
                 Material(
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   child: SafeArea(
@@ -63,27 +104,20 @@ class SmartParkApp extends ConsumerWidget {
                     child: Row(
                       children: [
                         const SizedBox(width: 8),
-                        Icon(
-                          repository.online
-                              ? Icons.cloud_done
-                              : Icons.cloud_off,
-                          size: 16,
-                        ),
+                        const Icon(Icons.cloud_off_outlined, size: 16),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            repository.error ?? repository.freshness,
+                            'Chưa thể đồng bộ. Đang hiển thị dữ liệu đã lưu.',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 11),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.sync,
-                            semanticLabel: 'Đồng bộ',
-                          ),
+                        TextButton(
+                          key: const ValueKey('sync-retry-button'),
                           onPressed: repository.refresh,
+                          child: const Text('Thử lại'),
                         ),
                       ],
                     ),
@@ -99,7 +133,14 @@ class SmartParkApp extends ConsumerWidget {
         '/register': (_) => AuthScreen(repository: repository, register: true),
         '/staff/login': (_) => AuthScreen(repository: repository, staff: true),
         '/home': (_) => guard(HomeScreen(repository: repository)),
-        '/parking/map': (_) => guard(ParkingMapScreen(repository: repository)),
+        // The base map is public. Private vehicles/tickets and booking actions
+        // remain protected; lot records still come from the authenticated API.
+        '/parking/map':
+            (_) => ParkingMapScreen(
+              repository: repository,
+              locationService: ref.read(locationServiceProvider),
+              tileProviderFactory: ref.read(mapTileProviderFactoryProvider),
+            ),
         '/parking/list':
             (_) => guard(ParkingListScreen(repository: repository)),
         '/parking/detail':
