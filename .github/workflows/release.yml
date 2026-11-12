@@ -58,9 +58,22 @@ jobs:
           echo "=== Build output directory contents ==="
           ls -la build/app/outputs/flutter-apk/ || true
 
-          # Tìm chính xác 2 file APK arm64-v8a hoặc file release bất kỳ của Customer và Staff
-          CUSTOMER_APK=$(find build/app/outputs/flutter-apk -name "*customer*arm64*.apk" -o -name "*customer*release*.apk" | head -n 1)
-          STAFF_APK=$(find build/app/outputs/flutter-apk -name "*staff*arm64*.apk" -o -name "*staff*release*.apk" | head -n 1)
+          # Tìm APK arm64-v8a của Customer và Staff (ưu tiên arm64, fallback sang release bất kỳ)
+          CUSTOMER_APK=$(find build/app/outputs/flutter-apk -name "*customer*arm64*.apk" | head -n 1)
+          if [ -z "$CUSTOMER_APK" ]; then
+            CUSTOMER_APK=$(find build/app/outputs/flutter-apk -name "*arm64*customer*.apk" | head -n 1)
+          fi
+          if [ -z "$CUSTOMER_APK" ]; then
+            CUSTOMER_APK=$(find build/app/outputs/flutter-apk -name "*customer*.apk" | grep -v "unsigned" | head -n 1)
+          fi
+
+          STAFF_APK=$(find build/app/outputs/flutter-apk -name "*staff*arm64*.apk" | head -n 1)
+          if [ -z "$STAFF_APK" ]; then
+            STAFF_APK=$(find build/app/outputs/flutter-apk -name "*arm64*staff*.apk" | head -n 1)
+          fi
+          if [ -z "$STAFF_APK" ]; then
+            STAFF_APK=$(find build/app/outputs/flutter-apk -name "*staff*.apk" | grep -v "unsigned" | head -n 1)
+          fi
 
           if [ -n "$CUSTOMER_APK" ] && [ -f "$CUSTOMER_APK" ]; then
             echo "Found Customer APK: $CUSTOMER_APK"
