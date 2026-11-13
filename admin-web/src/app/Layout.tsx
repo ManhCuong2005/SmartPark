@@ -18,6 +18,12 @@ import {
 import { useAdmin } from "../data/store";
 
 export const nav = [
+  {
+    path: "/incidents",
+    label: "Báo cáo đỗ sai",
+    icon: "IconTicket",
+    frame: "30:382",
+  },
   { path: "/", label: "Tổng quan", icon: "IconHome", frame: "30:5" },
   {
     path: "/parking",
@@ -65,9 +71,7 @@ export function Layout() {
   const pendingCheckinCount = data.bookings.filter(
     (b) => b.status === "Đã xác nhận",
   ).length;
-  const activeParked = data.bookings.filter(
-    (b) => b.status === "Đang sử dụng",
-  );
+  const activeParked = data.bookings.filter((b) => b.status === "Đang sử dụng");
   const nowMs = Date.now();
   const overdueCount = activeParked.filter((b) => {
     const endMs = b.endsAt ? new Date(b.endsAt).getTime() : NaN;
@@ -77,8 +81,7 @@ export function Layout() {
     .filter((p) => localDate(p.paidAt) === today)
     .reduce((sum, p) => sum + p.amount, 0);
   const unreadDbNotifications = data.notifications.filter((n) => !n.read);
-  const hasUnreadAlerts =
-    unreadDbNotifications.length > 0 || overdueCount > 0;
+  const hasUnreadAlerts = unreadDbNotifications.length > 0 || overdueCount > 0;
 
   const q = search.toLocaleLowerCase("vi").trim();
   const hits = q
@@ -280,7 +283,11 @@ export function Layout() {
                 type="button"
                 className="icon-tool-button"
                 aria-label="Đổi giao diện sáng tối"
-                title={dark ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"}
+                title={
+                  dark
+                    ? "Chuyển sang giao diện sáng"
+                    : "Chuyển sang giao diện tối"
+                }
                 onClick={() => {
                   const next =
                     document.documentElement.classList.toggle("dark");
@@ -335,8 +342,8 @@ export function Layout() {
               <div className="help-item">
                 <strong>Đồng bộ với Khách hàng</strong>
                 <p>
-                  Khi bạn cập nhật bảng giá, mở/khóa bãi đỗ hoặc bảo trì chỗ
-                  đỗ, ứng dụng Khách hàng tự động cập nhật theo thời gian thực.
+                  Khi bạn cập nhật bảng giá, mở/khóa bãi đỗ hoặc bảo trì chỗ đỗ,
+                  ứng dụng Khách hàng tự động cập nhật theo thời gian thực.
                 </p>
               </div>
               <div className="help-item">

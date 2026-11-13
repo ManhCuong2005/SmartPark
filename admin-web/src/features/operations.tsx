@@ -1,3 +1,4 @@
+import { vehicleKindLabel } from "../data/models";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -91,7 +92,7 @@ export function BookingsPage() {
                   b.id,
                   b.customer,
                   b.plate,
-                  b.vehicleKind === "motorcycle" ? "Xe máy" : "Ô tô",
+                  vehicleKindLabel(b.vehicleKind),
                   data.lots.find((l) => l.id === b.lotId)?.name ?? "",
                   b.slotCode,
                   b.date,
@@ -229,7 +230,7 @@ export function BookingsPage() {
                 <th>MÃ VÉ</th>
                 <th>KHÁCH HÀNG</th>
                 <th>BIỂN SỐ</th>
-                <th>BÃI & Ô ĐỖ</th>
+                <th>BÃI ĐỖ</th>
                 <th>THỜI GIAN</th>
                 <th>TRẠNG THÁI</th>
                 <th>ĐÃ THU</th>
@@ -244,7 +245,7 @@ export function BookingsPage() {
                   <td>
                     <span className="plate">{b.plate}</span>
                     <small className="cell-sub">
-                      {b.vehicleKind === "motorcycle" ? "Xe máy" : "Ô tô"}
+                      {vehicleKindLabel(b.vehicleKind)}
                     </small>
                   </td>
                   <td>
@@ -323,7 +324,7 @@ export function BookingsPage() {
                   </td>
                   <td>
                     <Badge tone={v.kind === "car" ? "blue" : "green"}>
-                      {v.kind === "car" ? "Ô tô" : "Xe máy"}
+                      {vehicleKindLabel(v.kind)}
                     </Badge>
                   </td>
                 </tr>
@@ -390,8 +391,7 @@ export function BookingsPage() {
             <div>
               <dt>Biển số & loại xe</dt>
               <dd>
-                {detail.plate} ·{" "}
-                {detail.vehicleKind === "motorcycle" ? "Xe máy" : "Ô tô"}
+                {detail.plate} · {vehicleKindLabel(detail.vehicleKind)}
                 {detail.vehicleLabel ? ` (${detail.vehicleLabel})` : ""}
               </dd>
             </div>
@@ -490,7 +490,7 @@ export function StaffPage() {
         <Metric
           label="Đang hoạt động"
           value={activeCount}
-          detail="Được phép quét QR & thu tiền"
+          detail="Được phép quét biển số & thu tiền"
           icon="IconClock"
           tone="green"
           positive={activeCount > 0}
@@ -639,8 +639,8 @@ export function StaffPage() {
             <div>
               <strong>Đồng bộ phân quyền thời gian thực</strong>
               <p>
-                Khi cấp quyền hoặc thu hồi, ứng dụng SmartPark Staff tự động
-                cập nhật danh sách bãi mà nhân viên được phép kiểm soát cổng.
+                Khi cấp quyền hoặc thu hồi, ứng dụng SmartPark Staff tự động cập
+                nhật danh sách bãi mà nhân viên được phép kiểm soát cổng.
               </p>
             </div>
           </div>
@@ -664,9 +664,7 @@ function StaffEditor({
   const { data, command, notice } = useAdmin();
   const [email, setEmail] = useState(staff?.email ?? "");
   const [lot, setLot] = useState(staff?.lotId ?? data.lots[0]?.id ?? "");
-  const [shift, setShift] = useState<Staff["shift"]>(
-    staff?.shift ?? "morning",
-  );
+  const [shift, setShift] = useState<Staff["shift"]>(staff?.shift ?? "morning");
   const [active, setActive] = useState(staff?.active ?? true);
   const [busy, setBusy] = useState(false);
 

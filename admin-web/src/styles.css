@@ -3641,3 +3641,13 @@ tr.row-selected {
     grid-template-columns: 1fr;
   }
 }
+
+.report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-block: 16px; }
+.report-actions label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.report-actions select { max-width: 100%; padding: 8px; }
+
+.incident-panel { padding: 20px; margin-bottom: 16px; }
+.incident-panel h2 { margin: 0 0 8px; font-size: 18px; line-height: 1.4; }
+.incident-panel p { margin: 6px 0; line-height: 1.5; }
+.incident-panel summary { margin-top: 12px; cursor: pointer; }
+.incident-panel li { padding-block: 6px; }

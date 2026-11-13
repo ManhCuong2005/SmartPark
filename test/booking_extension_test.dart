@@ -106,8 +106,6 @@ void main() {
         ],
       });
       state.selectedBookingId = b['id'] as String;
-      state.scannedQr =
-          TicketIdentity(b['id'] as String, b['qr_token'] as String).encoded;
       await expectLater(
         state.staffAction(true, b['plate'] as String),
         throwsA(isA<ParkFailure>()),

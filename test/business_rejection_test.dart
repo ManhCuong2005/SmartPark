@@ -152,25 +152,20 @@ void main() {
     },
   );
   test(
-    'mismatched scanned QR never becomes an offline check-in request',
+    'mismatched confirmed plate never becomes an offline check-in request',
     () async {
       final backend = BusinessRepository(offline: true, staff: true);
       final state = ParkController(backend, monitorConnectivity: false);
       addTearDown(state.dispose);
       await state.initialize();
       state.selectedBookingId = state.bookings.single['id'] as String;
-      state.scannedQr =
-          TicketIdentity(
-            '60000000-0000-0000-0000-000000000099',
-            'a' * 64,
-          ).encoded;
       await expectLater(
-        state.staffAction(true, state.vehicle.plate),
+        state.staffAction(true, '43A99999'),
         throwsA(
           isA<ParkFailure>().having(
             (e) => e.message,
             'reason',
-            contains('QR không khớp'),
+            contains('Biển số không khớp'),
           ),
         ),
       );
@@ -178,7 +173,7 @@ void main() {
     },
   );
   test(
-    'expired QR explains the business restriction without queuing check-in',
+    'expired ticket explains the business restriction without queuing check-in',
     () async {
       final backend = BusinessRepository(
         offline: true,
@@ -188,13 +183,7 @@ void main() {
       final state = ParkController(backend, monitorConnectivity: false);
       addTearDown(state.dispose);
       await state.initialize();
-      final booking = state.bookings.single;
-      await state.openTicket(
-        TicketIdentity(
-          booking['id'] as String,
-          booking['qr_token'] as String,
-        ).encoded,
-      );
+      state.selectedBookingId = state.bookings.single['id'] as String;
       await expectLater(
         state.staffAction(true, state.vehicle.plate),
         throwsA(

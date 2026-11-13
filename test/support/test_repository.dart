@@ -45,6 +45,20 @@ class TestRepository implements ParkingRepository {
           'version': 1,
         },
       ],
+      'capacities': [
+        {
+          'lot_id': '20000000-0000-0000-0000-000000000001',
+          'kind': 'car',
+          'capacity': 1,
+          'remaining': 1,
+        },
+        {
+          'lot_id': '20000000-0000-0000-0000-000000000001',
+          'kind': 'motorcycle',
+          'capacity': 1,
+          'remaining': 1,
+        },
+      ],
       'slots': [
         {
           'id': '30000000-0000-0000-0000-000000000001',
@@ -114,13 +128,15 @@ class TestRepository implements ParkingRepository {
     DateTime start,
     DateTime end, {
     String? vehicleId,
-  }) async => ReservationAvailability(slots: fixture().rows('slots'));
+  }) async => ReservationAvailability(capacities: fixture().rows('capacities'));
   @override
   Future<Json> execute(String id, String kind, Json payload) async {
     executions++;
     if (offline) throw const ParkFailure('Offline', retryable: true);
-    if (kind == 'booking.create') {
-      return {...fixture().rows('bookings').first, ...payload};
+    if (kind == 'staff.lookup') return fixture().rows('bookings').single;
+    if (kind == 'booking.pay') {
+      return {...fixture().rows('bookings').first, ...payload,
+        'prepaid': true, 'amount': payload['expected_amount']};
     }
     return {};
   }

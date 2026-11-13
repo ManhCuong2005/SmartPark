@@ -33,7 +33,10 @@ class AvailabilityRepository extends TestRepository {
     }
     if (!delay) {
       return Future.value(
-        ReservationAvailability(slots: rows, vehicleConflict: vehicleConflict),
+        ReservationAvailability(
+          capacities: rows,
+          vehicleConflict: vehicleConflict,
+        ),
       );
     }
     final request = Completer<ReservationAvailability>();
@@ -80,7 +83,6 @@ void main() {
       final state = ParkController(backend, monitorConnectivity: false);
       addTearDown(state.dispose);
       await state.initialize();
-      state.slot = 'A001';
       state.setReservationPeriod(
         DateTime(2026, 11, 12, 23, 30),
         DateTime(2026, 11, 13, 1, 30),
@@ -88,7 +90,7 @@ void main() {
       state.setDuration(8);
       expect(state.endsAt, DateTime(2026, 11, 13, 7, 30));
       expect(state.durationMinutes, 480);
-      expect(state.selectedSlotId, isNull);
+      expect(state.vehicleConflict, isNull);
       expect(state.canContinueBooking, false);
     },
   );
@@ -100,24 +102,22 @@ void main() {
       final state = ParkController(backend, monitorConnectivity: false);
       addTearDown(state.dispose);
       await state.initialize();
-      expect(state.slots, isNotEmpty);
+      expect(state.capacities, isNotEmpty);
       expect(state.availabilityReady, true);
-      expect(state.bookingSlots, isEmpty);
-      state.slot = 'A001';
+      expect(state.bookingCapacities, isEmpty);
       expect(state.canContinueBooking, false);
-      backend.rows = backend.fixture().rows('slots');
+      backend.rows = backend.fixture().rows('capacities');
       await state.loadAvailability();
-      state.slot = 'A001';
       expect(state.canContinueBooking, true);
       backend.rows = [
-        {...backend.rows.single, 'occupied': true},
+        {...backend.rows.first, 'remaining': 0},
       ];
       await state.loadAvailability();
-      expect(state.selectedSlotId, isNull);
+      expect(state.vehicleConflict, isNull);
       backend.fail = true;
       await state.loadAvailability();
       expect(state.availabilityError, isNotNull);
-      expect(state.bookingSlots, isEmpty);
+      expect(state.bookingCapacities, isEmpty);
       expect(state.canContinueBooking, false);
     },
   );
@@ -136,13 +136,17 @@ void main() {
         state.endsAt.add(const Duration(days: 1)),
       );
       final second = state.loadAvailability();
-      backend.requests.last.complete(const ReservationAvailability(slots: []));
+      backend.requests.last.complete(
+        const ReservationAvailability(capacities: []),
+      );
       await second;
       backend.requests.first.complete(
-        ReservationAvailability(slots: backend.fixture().rows('slots')),
+        ReservationAvailability(
+          capacities: backend.fixture().rows('capacities'),
+        ),
       );
       await first;
-      expect(state.bookingSlots, isEmpty);
+      expect(state.bookingCapacities, isEmpty);
       expect(state.availabilityLoading, false);
     },
   );
@@ -168,8 +172,6 @@ void main() {
         ],
       });
       state.selectedBookingId = b['id'] as String;
-      state.scannedQr =
-          TicketIdentity(b['id'] as String, b['qr_token'] as String).encoded;
       await state.staffAction(true, b['plate'] as String);
       expect(state.ticket!['status'], 'parked');
       expect(
@@ -198,10 +200,10 @@ void main() {
   );
 
   testWidgets(
-    'customer chooses time, quick duration and available slot before confirmation',
+    'customer chooses time and quick duration then opens confirmation directly',
     (tester) async {
       final backend = AvailabilityRepository();
-      backend.rows = backend.fixture().rows('slots');
+      backend.rows = backend.fixture().rows('capacities');
       final state = ParkController(backend, monitorConnectivity: false);
       await state.initialize();
       await tester.pumpWidget(
@@ -218,12 +220,6 @@ void main() {
       await tester.tap(find.text('+4 giờ'));
       await tester.pumpAndSettle();
       expect(state.durationMinutes, 240);
-      await tester.tap(find.text('Tìm chỗ trống'));
-      await tester.pumpAndSettle();
-      expect(find.text('Chọn chỗ đỗ'), findsOneWidget);
-      await tester.ensureVisible(find.text('A001'));
-      await tester.tap(find.text('A001'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Tiếp tục'));
       await tester.pumpAndSettle();
       expect(find.text('Xác nhận đặt chỗ'), findsOneWidget);
@@ -274,7 +270,7 @@ void main() {
     expect(haptics, hasLength(1));
   });
 
-  testWidgets('QR feedback follows successful ticket validation only', (
+  testWidgets('Plate feedback follows successful ticket validation only', (
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
@@ -313,14 +309,7 @@ void main() {
     await invalid;
     expect(haptics, isEmpty);
     final ticket = state.bookings.single;
-    final valid =
-        scannerState.open(
-              TicketIdentity(
-                ticket['id'] as String,
-                ticket['qr_token'] as String,
-              ).encoded,
-            )
-            as Future<void>;
+    final valid = scannerState.open(ticket['plate'] as String) as Future<void>;
     await tester.pumpAndSettle();
     expect(find.text('Vé hợp lệ'), findsOneWidget);
     expect(haptics, hasLength(1));
@@ -332,7 +321,7 @@ void main() {
   });
 
   for (final width in [320.0, 390.0]) {
-    for (final route in ['/booking/time', '/booking/slots']) {
+    for (final route in ['/booking/time', '/booking/capacity']) {
       testWidgets(
         '$route remains readable at $width with dark mode and larger text',
         (tester) async {
@@ -344,16 +333,7 @@ void main() {
               width == 320 ? 1.4 : 1;
           addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
           final backend = AvailabilityRepository();
-          final slot = backend.fixture().rows('slots').single;
-          backend.rows = List.generate(
-            12,
-            (i) => {
-              ...slot,
-              'id': 'slot-$i',
-              'code': 'A${(i + 1).toString().padLeft(3, '0')}',
-              'occupied': i % 3 == 1,
-            },
-          );
+          backend.rows = backend.fixture().rows('capacities');
           final state = ParkController(backend, monitorConnectivity: false);
           await state.initialize();
           const boundaryKey = ValueKey('reservation-review');
@@ -372,13 +352,6 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
-          if (route.endsWith('slots')) {
-            await tester.ensureVisible(find.text('A001'));
-            await tester.tap(find.text('A001'));
-            await tester.pumpAndSettle();
-            expect(state.slot, 'A001');
-            expect(state.canContinueBooking, true);
-          }
           expect(tester.takeException(), isNull);
           if (const bool.fromEnvironment('SMARTPARK_CAPTURE_REVIEW')) {
             final boundary = tester.renderObject<RenderRepaintBoundary>(

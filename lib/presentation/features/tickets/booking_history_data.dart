@@ -38,7 +38,7 @@ class BookingHistoryData {
       final rate = (row['hourly_rate'] as num?)?.toInt() ?? 0;
       final free = (row['free_minutes'] as num?)?.toInt() ?? 0;
       var amount = 0;
-      if (status == 'completed') {
+      if (row['prepaid'] == true || status == 'completed') {
         amount = (row['amount'] as num?)?.toInt() ?? 0;
       } else if (status == 'confirmed' && end.isAfter(start)) {
         amount = calculateFee(start, end, rate, free);
@@ -53,13 +53,16 @@ class BookingHistoryData {
         lotName: lots[row['lot_id']]?['name'] as String? ?? 'Bãi đỗ',
         slotCode: slots[row['slot_id']]?['code'] as String? ?? '',
         plate: row['plate'] as String? ?? '',
-        motorcycle: vehicles[row['vehicle_id']]?['kind'] == 'motorcycle',
+        motorcycle:
+            (row['vehicle_kind'] ?? vehicles[row['vehicle_id']]?['kind']) ==
+            'motorcycle',
         startsAt: start,
         endsAt: end,
         checkedInAt: checkedIn,
         checkedOutAt: checkedOut,
         sortTime: checkedOut ?? _date(row['created_at']) ?? start,
         amount: amount,
+        prepaid: row['prepaid'] == true,
       );
       (booking.isActive ? active : ended).add(booking);
     }
@@ -84,11 +87,12 @@ class HistoryBooking {
     required this.endsAt,
     required this.sortTime,
     required this.amount,
+    this.prepaid = false,
     this.checkedInAt,
     this.checkedOutAt,
   });
   final String id, status, lotName, slotCode, plate;
-  final bool motorcycle;
+  final bool motorcycle, prepaid;
   final DateTime startsAt, endsAt, sortTime;
   final DateTime? checkedInAt, checkedOutAt;
   final int amount;
@@ -107,7 +111,14 @@ class HistoryBooking {
   String get durationLabel => historyDuration(
     (checkedOutAt ?? endsAt).difference(checkedInAt ?? startsAt),
   );
-  String get priceCaption => status == 'parked' ? 'Tạm tính' : 'Dự kiến';
+  String get priceCaption =>
+      prepaid
+          ? isCancelled
+              ? 'Đã hoàn vào số dư'
+              : 'Đã thanh toán'
+          : status == 'parked'
+          ? 'Tạm tính'
+          : 'Dự kiến';
 }
 
 DateTime? _date(Object? value) =>

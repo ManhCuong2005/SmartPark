@@ -30,7 +30,7 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
     widget.repository.update(
       () => widget.repository.selectedBookingId = booking.id,
     );
-    Navigator.pushNamed(context, '/tickets/qr');
+    Navigator.pushNamed(context, '/tickets/detail');
   }
 
   @override
@@ -106,7 +106,7 @@ class _TicketHistoryScreenState extends State<TicketHistoryScreen> {
                                 child: _HistoryEmpty(
                                   title: 'Chưa có vé đang hoạt động',
                                   message:
-                                      'Vé đặt chỗ mới sẽ xuất hiện tại đây để bạn mở mã QR khi đến bãi.',
+                                      'Vé đặt chỗ mới sẽ xuất hiện tại đây để bạn đối chiếu biển số khi đến bãi.',
                                 ),
                               ),
                             ),

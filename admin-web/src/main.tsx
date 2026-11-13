@@ -25,6 +25,9 @@ const SettingsPage = lazy(() =>
     default: m.SettingsPage,
   })),
 );
+const IncidentsPage = lazy(() =>
+  import("./features/incidents").then((m) => ({ default: m.IncidentsPage })),
+);
 import "./styles.css";
 try {
   const theme = localStorage.getItem("smartpark-theme");
@@ -53,6 +56,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="bookings" element={<BookingsPage />} />
             <Route path="staff" element={<StaffPage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="incidents" element={<IncidentsPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

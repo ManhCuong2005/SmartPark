@@ -159,7 +159,7 @@ class StaffHomeScreen extends StatelessWidget {
                   onTap:
                       () => Navigator.pushNamed(
                         context,
-                        i == 0 ? '/staff/scan' : '/staff/slots',
+                        i == 0 ? '/staff/scan' : '/staff/capacity',
                       ),
                   padding: const EdgeInsets.all(16),
                   child: Row(
@@ -188,7 +188,7 @@ class StaffHomeScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Txt(
-                              i == 0 ? 'Quét mã QR' : 'Sơ đồ vị trí',
+                              i == 0 ? 'Quét biển số' : 'Sức chứa bãi',
                               size: 18,
                               weight: FontWeight.w700,
                             ),

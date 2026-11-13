@@ -1,4 +1,5 @@
 export 'live_account.dart';
+import 'wallet_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
@@ -128,6 +129,12 @@ class ProfileScreen extends StatelessWidget {
             ],
           ),
         ),
+        if (repository.userId != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: ProfileWalletCard(userId: repository.userId!),
+          ),
+        const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 25, 24, 16),
           child: Column(
@@ -204,6 +211,11 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+              ListTile(
+                leading: const Icon(Icons.report_outlined),
+                title: const Text('Báo cáo đỗ sai'),
+                onTap: () => Navigator.pushNamed(context, '/reports'),
+              ),
               Consumer(
                 builder:
                     (context, ref, _) => SwitchListTile(

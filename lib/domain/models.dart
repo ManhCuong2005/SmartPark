@@ -11,22 +11,32 @@ class ParkFailure implements Exception {
 }
 
 class ReservationAvailability {
-  const ReservationAvailability({required this.slots, this.vehicleConflict});
-  final List<Json> slots;
+  const ReservationAvailability({
+    required this.capacities,
+    this.vehicleConflict,
+  });
+  final List<Json> capacities;
 
   /// Only the signed-in customer's selected vehicle; never another customer's ticket.
   final Json? vehicleConflict;
-  factory ReservationAvailability.fromJson(Json data) =>
-      ReservationAvailability(
-        slots:
-            (data['slots'] as List)
-                .map((row) => Map<String, dynamic>.from(row as Map))
-                .toList(),
-        vehicleConflict:
-            data['vehicle_conflict'] == null
-                ? null
-                : Map<String, dynamic>.from(data['vehicle_conflict'] as Map),
+  factory ReservationAvailability.fromJson(Json data) {
+    if (data['capacities'] is! List) {
+      throw const ParkFailure(
+        'Máy chủ chưa cập nhật quản lý sức chứa. Cần áp dụng migration 009–010 trước khi dùng phiên bản này.',
+        code: 'BOOKING_SCHEMA_REQUIRED',
       );
+    }
+    return ReservationAvailability(
+      capacities:
+          (data['capacities'] as List)
+              .map((row) => Map<String, dynamic>.from(row as Map))
+              .toList(),
+      vehicleConflict:
+          data['vehicle_conflict'] == null
+              ? null
+              : Map<String, dynamic>.from(data['vehicle_conflict'] as Map),
+    );
+  }
 }
 
 class ParkingSnapshot {
@@ -55,23 +65,4 @@ class PendingOperation {
   final int attempts;
   final String? error;
   final DateTime? nextAttempt;
-}
-
-class TicketIdentity {
-  const TicketIdentity(this.id, this.token);
-  final String id, token;
-  String get encoded => 'smartpark:v1:$id:$token';
-  static TicketIdentity parse(String value) {
-    final parts = value.trim().split(':');
-    if (parts.length != 4 ||
-        parts[0] != 'smartpark' ||
-        parts[1] != 'v1' ||
-        !RegExp(
-          r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$',
-        ).hasMatch(parts[2]) ||
-        !RegExp(r'^[a-f0-9]{64}$').hasMatch(parts[3])) {
-      throw const ParkFailure('QR SmartPark không hợp lệ.');
-    }
-    return TicketIdentity(parts[2], parts[3]);
-  }
 }

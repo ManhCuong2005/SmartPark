@@ -1,3 +1,4 @@
+import { vehicleKindLabel } from "../data/models";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -30,6 +31,13 @@ import {
 import type { Payment, Pricing } from "../data/models";
 
 type PeriodMode = "today" | "7days" | "month" | "6months" | "all";
+
+function paymentMethodLabel(method: string): string {
+  const labels: Record<string, string> = {
+    cash: "Tiền mặt", wallet: "Số dư gửi xe", qr: "QR payOS", wallet_refund: "Hoàn vào số dư",
+  };
+  return labels[method] ?? method;
+}
 
 function shiftLocalDate(baseYmd: string, deltaDays: number): string {
   const [y, m, d] = baseYmd.split("-").map(Number);
@@ -168,6 +176,7 @@ export function ReportsPage() {
     (b) => b.status === "Đã xác nhận",
   );
   const activeEstimatedValue = activeParked.reduce((sum, b) => {
+    if (b.prepaid) return sum;
     const startMs = b.checkedIn
       ? new Date(b.checkedIn).getTime()
       : new Date(b.startsAt).getTime();
@@ -176,7 +185,10 @@ export function ReportsPage() {
       : Math.max(1, Math.ceil((Date.now() - startMs) / 60000));
     return (
       sum +
-      Math.max(b.amount, estimateParkingFee(elapsedMin, b.hourlyRate, b.freeMinutes))
+      Math.max(
+        b.amount,
+        estimateParkingFee(elapsedMin, b.hourlyRate, b.freeMinutes),
+      )
     );
   }, 0);
 
@@ -280,8 +292,9 @@ export function ReportsPage() {
   const motoPayments = paid.filter((p) => p.vehicleKind === "motorcycle");
   const carRevenue = carPayments.reduce((s, p) => s + p.amount, 0);
   const motoRevenue = motoPayments.reduce((s, p) => s + p.amount, 0);
-  const carPct = revenue > 0 ? Math.round((carRevenue / revenue) * 100) : 0;
-  const motoPct = revenue > 0 ? Math.max(0, 100 - carPct) : 0;
+  const carPct = revenue > 0 ? Math.max(0, Math.min(100, Math.round((carRevenue / revenue) * 100))) : 0;
+  const motoPct = revenue > 0 ? Math.max(0, Math.min(100, Math.round((motoRevenue / revenue) * 100))) : 0;
+  const unknownPayments = paid.filter((p) => p.vehicleKind === "unknown");
 
   const collectorSummary = useMemo(() => {
     const map = new Map<
@@ -320,7 +333,8 @@ export function ReportsPage() {
       .map((l) => {
         const items = periodAllLots.filter((p) => p.lotId === l.id);
         const val = items.reduce((s, p) => s + p.amount, 0);
-        const share = periodTotal > 0 ? Math.round((val / periodTotal) * 100) : 0;
+        const share =
+          periodTotal > 0 ? Math.round((val / periodTotal) * 100) : 0;
         return {
           id: l.id,
           label: l.name,
@@ -365,11 +379,7 @@ export function ReportsPage() {
       return;
     }
     const suffix =
-      period === "month"
-        ? month
-        : period === "today"
-          ? today
-          : period;
+      period === "month" ? month : period === "today" ? today : period;
     exportCsv(
       `smartpark-doanh-thu-${suffix}.csv`,
       [
@@ -393,12 +403,12 @@ export function ReportsPage() {
         p.lotName,
         p.customerName || "Khách vãng lai",
         p.plate,
-        p.vehicleKind === "motorcycle" ? "Xe máy" : "Ô tô",
+        vehicleKindLabel(p.vehicleKind),
         formatDateTime(p.checkedInAt),
         formatDateTime(p.checkedOutAt),
         formatDuration(p.checkedInAt, p.checkedOutAt),
         p.receivedByName || p.receivedBy,
-        p.method === "cash" ? "Tiền mặt" : p.method,
+        paymentMethodLabel(p.method),
         formatDateTime(p.paidAt),
         p.amount,
       ]),
@@ -421,11 +431,7 @@ export function ReportsPage() {
         subtitle="Tổng hợp thời gian thực từ khoản thu tiền mặt do nhân viên xác nhận check-out."
         action={
           <div className="heading-action-group">
-            <Button
-              secondary
-              disabled={syncing}
-              onClick={() => void refresh()}
-            >
+            <Button secondary disabled={syncing} onClick={() => void refresh()}>
               <UiIcon
                 name="refresh"
                 size={15}
@@ -512,9 +518,7 @@ export function ReportsPage() {
                 setPage(1);
               }}
             >
-              <option value="all">
-                Tất cả bãi đỗ ({data.lots.length})
-              </option>
+              <option value="all">Tất cả bãi đỗ ({data.lots.length})</option>
               {data.lots.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
@@ -610,7 +614,7 @@ export function ReportsPage() {
           value={`${activeParked.length} đỗ · ${confirmedBookings.length} chờ`}
           detail={
             activeParked.length > 0
-              ? `Tạm tính đang đỗ: ${money(activeEstimatedValue)}`
+              ? `Chưa thu (vé cũ): ${money(activeEstimatedValue)}`
               : "Chờ khách check-in / check-out"
           }
           uiIcon="clock"
@@ -667,21 +671,26 @@ export function ReportsPage() {
               <h2>Phương thức & loại xe</h2>
               <p className="panel-sub">Cơ cấu khoản thu đã xác nhận</p>
             </div>
-            <Badge tone="blue">100% Tiền mặt</Badge>
+            <Badge tone="blue">Đã trừ hoàn tiền</Badge>
           </div>
 
           <div className="method-highlight">
             <div className="method-row-top">
               <span className="method-name">
                 <Asset name="LegendDot" />
-                <strong>Tiền mặt tại cổng (Cash)</strong>
+                <strong>Tổng thu sau hoàn tiền</strong>
               </span>
               <strong>{money(revenue)}</strong>
             </div>
             <p>
-              {paid.length} giao dịch đã quyết toán · đồng bộ tự động từ ứng
-              dụng Nhân viên.
+              {paid.length} giao dịch đã xác nhận · tiền mặt, QR và số dư gửi xe.
             </p>
+            {(["cash", "qr", "wallet", "wallet_refund"] as const).map((method) => {
+              const total = paid.filter((p) => p.method === method).reduce((sum, p) => sum + p.amount, 0);
+              return total !== 0 ? <div className="breakdown-head" key={method}>
+                <span>{paymentMethodLabel(method)}</span><strong>{money(total)}</strong>
+              </div> : null;
+            })}
           </div>
 
           <div className="vehicle-breakdown">
@@ -712,6 +721,13 @@ export function ReportsPage() {
             </div>
           </div>
 
+          {unknownPayments.length > 0 && (
+            <p className="panel-sub">
+              Chưa xác định loại xe: {unknownPayments.length} lượt ·{" "}
+              {money(unknownPayments.reduce((sum, p) => sum + p.amount, 0))}.
+              Khoản thu vẫn được cộng vào tổng doanh thu.
+            </p>
+          )}
           {collectorSummary.length > 0 && (
             <div className="collector-list">
               <span className="collector-title">Nhân viên thu gần đây</span>
@@ -766,7 +782,9 @@ export function ReportsPage() {
                   <div className="rank-card-top">
                     <b>#{i + 1}</b>
                     <Badge tone={l.enabled ? "green" : "gray"}>
-                      {l.enabled ? `${l.occupied}/${l.capacity} xe` : "Tạm khóa"}
+                      {l.enabled
+                        ? `${l.occupied}/${l.capacity} xe`
+                        : "Tạm khóa"}
                     </Badge>
                   </div>
                   <strong>{l.label}</strong>
@@ -840,14 +858,14 @@ export function ReportsPage() {
                       <td>
                         <span className="plate">{p.plate || "—"}</span>
                         <small className="cell-sub">
-                          {p.vehicleKind === "motorcycle" ? "Xe máy" : "Ô tô"} ·{" "}
+                          {vehicleKindLabel(p.vehicleKind)} ·{" "}
                           {formatDuration(p.checkedInAt, p.checkedOutAt)}
                         </small>
                       </td>
                       <td>{p.customerName || "Khách đặt chỗ"}</td>
                       <td>
                         <span>{p.receivedByName || "Nhân viên"}</span>
-                        <small className="cell-sub">Tiền mặt</small>
+                        <small className="cell-sub">{paymentMethodLabel(p.method)}</small>
                       </td>
                       <td>
                         <strong className="money-positive">
@@ -892,9 +910,7 @@ export function ReportsPage() {
         <Dialog
           title="Chi tiết biên lai thu tiền"
           onClose={() => setDetailPayment(null)}
-          footer={
-            <Button onClick={() => setDetailPayment(null)}>Đóng</Button>
-          }
+          footer={<Button onClick={() => setDetailPayment(null)}>Đóng</Button>}
         >
           <dl className="receipt-dl">
             <div>
@@ -917,7 +933,7 @@ export function ReportsPage() {
               <dt>Biển số & loại xe</dt>
               <dd>
                 {detailPayment.plate} ·{" "}
-                {detailPayment.vehicleKind === "motorcycle" ? "Xe máy" : "Ô tô"}
+                {vehicleKindLabel(detailPayment.vehicleKind)}
               </dd>
             </div>
             <div>
@@ -945,7 +961,7 @@ export function ReportsPage() {
               </dd>
             </div>
             <div>
-              <dt>Nhân viên xác nhận thu</dt>
+              <dt>Người xác nhận giao dịch</dt>
               <dd>
                 {detailPayment.receivedByName || detailPayment.receivedBy}
               </dd>
@@ -955,7 +971,7 @@ export function ReportsPage() {
               <dd>{formatDateTime(detailPayment.paidAt)}</dd>
             </div>
             <div className="receipt-total-row">
-              <dt>Thực thu (Tiền mặt)</dt>
+              <dt>{paymentMethodLabel(detailPayment.method)}</dt>
               <dd>{money(detailPayment.amount)}</dd>
             </div>
           </dl>
@@ -968,8 +984,7 @@ export function ReportsPage() {
 export function SettingsPage() {
   const { data } = useAdmin();
   const [selected, setSelected] = useState("");
-  const lot =
-    data.lots.find((l) => l.id === selected) ?? data.lots[0];
+  const lot = data.lots.find((l) => l.id === selected) ?? data.lots[0];
 
   if (!lot)
     return (
@@ -1089,8 +1104,7 @@ function PricingEditor({
   ] as const;
 
   const isDirty =
-    draft.car !== initial.car ||
-    draft.motorcycle !== initial.motorcycle;
+    draft.car !== initial.car || draft.motorcycle !== initial.motorcycle;
 
   const car2h = estimateParkingFee(120, draft.car, draft.freeMinutes);
   const moto2h = estimateParkingFee(120, draft.motorcycle, draft.freeMinutes);
@@ -1182,8 +1196,8 @@ function PricingEditor({
           <div>
             <strong>Đặt trước cần máy chủ xác nhận</strong>
             <p>
-              Vé QR chỉ được phát hành khi Supabase xác nhận còn chỗ trống khả
-              dụng trong khung giờ khách chọn.
+              Vé chỉ được phát hành khi Supabase xác nhận còn chỗ trống khả dụng
+              trong khung giờ khách chọn.
             </p>
           </div>
           <Asset name="SwitchChoPhepDtTrc" />
@@ -1192,7 +1206,7 @@ function PricingEditor({
           <div>
             <strong>Check-out & thu tiền mặt tại cổng</strong>
             <p>
-              Nhân viên quét QR hoặc nhận diện biển số trên app Staff, hệ thống
+              Nhân viên nhận diện và xác nhận biển số trên app Staff, hệ thống
               chốt phí theo thời gian gửi thực tế và tạo phiếu thu ngay.
             </p>
           </div>

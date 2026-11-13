@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/local/parking_database.dart';
+import '../data/payos_topup_repository.dart';
 import '../data/plate_recognizer.dart';
 import '../data/device_location_service.dart';
 import '../data/map_tile_provider.dart';
@@ -18,6 +19,9 @@ import '../presentation/park_controller.dart';
 final parkingRepositoryProvider = Provider<ParkingRepository>(
   (ref) =>
       SupabaseParkingRepository(Supabase.instance.client, ParkingDatabase()),
+);
+final payosTopupRepositoryProvider = Provider(
+  (ref) => PayosTopupRepository(Supabase.instance.client),
 );
 final parkControllerProvider = ChangeNotifierProvider<ParkController>((ref) {
   final controller = ParkController(

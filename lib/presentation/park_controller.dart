@@ -78,7 +78,7 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
   String? _availabilityLot;
   String? _availabilityVehicle;
   DateTime? _availabilityStart, _availabilityEnd;
-  String? selectedLotId, selectedSlotId, selectedBookingId, scannedQr;
+  String? selectedLotId, selectedBookingId;
   String? error;
   bool loading = false, online = false, _disposed = false;
   String? _lastUserId;
@@ -107,15 +107,18 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
   int get durationMinutes => endsAt.difference(startsAt).inMinutes;
   List<ParkingLot> get lots =>
       snapshot.rows('lots').map((l) {
-        final all = snapshot
-            .rows('slots')
-            .where((s) => s['lot_id'] == l['id'] && s['enabled'] == true);
-        final used = all.where((s) => s['occupied'] == true).length;
+        final counts = snapshot
+            .rows('capacities')
+            .where((c) => c['lot_id'] == l['id']);
+        final remaining = counts.fold<int>(
+          0,
+          (sum, c) => sum + (c['remaining'] as int? ?? 0),
+        );
         return ParkingLot(
           l['id'] as String,
           l['name'] as String,
           l['area'] as String,
-          (all.length - used).clamp(0, all.length),
+          remaining,
           l['car_rate'] as int,
           motorcycleRate: l['motorcycle_rate'] as int,
           latitude: (l['latitude'] as num?)?.toDouble(),
@@ -127,16 +130,30 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
       (lots.firstOrNull ?? const ParkingLot('', 'Chưa có bãi đỗ', '', 0, 0));
   set lot(ParkingLot value) {
     selectedLotId = value.id;
-    selectedSlotId = null;
     availabilityRows = [];
     _availabilityLot = null;
     unawaited(loadAvailability());
   }
 
-  // Current occupancy is for staff. Future reservations use only an exact
-  // interval response, never today's occupancy or another interval's cache.
-  List<Json> get slots =>
-      snapshot.rows('slots').where((s) => s['lot_id'] == lot.id).toList();
+  List<Json> get capacities =>
+      snapshot.rows('capacities').where((c) => c['lot_id'] == lot.id).toList();
+  List<ParkingLot> get staffLots =>
+      lots
+          .where(
+            (l) =>
+                snapshot
+                    .rows('lots')
+                    .any((r) => r['id'] == l.id && r['owner_id'] == userId) ||
+                snapshot
+                    .rows('memberships')
+                    .any(
+                      (m) =>
+                          m['lot_id'] == l.id &&
+                          m['user_id'] == userId &&
+                          m['active'] == true,
+                    ),
+          )
+          .toList();
   bool get availabilityReady =>
       _availabilityLot == lot.id &&
       _availabilityStart == startsAt &&
@@ -148,43 +165,29 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
   String get vehicleConflictMessage {
     final conflict = vehicleConflict;
     if (conflict == null) return '';
-    final from = DateTime.parse(conflict['starts_at'] as String).toLocal();
-    final until = DateTime.parse(conflict['ends_at'] as String).toLocal();
-    final label = conflict['status'] == 'parked' ? 'đang gửi' : 'đã có vé';
-    final heldUntil = noShowDeadline(until);
-    final hold =
-        conflict['status'] == 'confirmed'
-            ? 'Vé chưa dùng sẽ bị xóa lúc ${clock(TimeOfDay.fromDateTime(heldUntil))} ${displayDate(heldUntil)}. '
-            : '';
-    return 'Xe ${vehicle.plate} $label tại ${conflict['lot_name']}, ô ${conflict['slot_code']}, '
-        'từ ${clock(TimeOfDay.fromDateTime(from))} ${displayDate(from)} đến '
-        '${clock(TimeOfDay.fromDateTime(until))} ${displayDate(until)}. '
-        '$hold'
-        'Hãy đổi xe, đổi giờ hoặc kiểm tra vé hiện có.';
+    return 'Xe ${vehicle.plate} đã có vé trùng thời gian hoặc vẫn đang gửi. Hãy kiểm tra lịch sử vé, đổi xe hoặc đổi giờ.';
   }
 
-  List<Json> get bookingSlots => availabilityReady ? availabilityRows : [];
-  Set<String> get bookingOccupied =>
-      bookingSlots
-          .where((s) => s['occupied'] == true || s['enabled'] != true)
-          .map((s) => s['code'] as String)
-          .toSet();
+  List<Json> get bookingCapacities => availabilityReady ? availabilityRows : [];
+  int get remainingCapacity =>
+      bookingCapacities
+              .where((c) => c['kind'] == vehicle.kind)
+              .firstOrNull?['remaining']
+          as int? ??
+      0;
   bool get canContinueBooking =>
+      bookingVehicleKind != null &&
+      vehicle.id.isNotEmpty &&
+      availabilityReady &&
       !availabilityLoading &&
       vehicleConflict == null &&
-      bookingSlots.any(
-        (s) =>
-            s['id'] == selectedSlotId &&
-            s['enabled'] == true &&
-            s['occupied'] == false,
-      );
+      remainingCapacity > 0;
 
   void setReservationPeriod(DateTime from, DateTime until) {
     date = DateTime(from.year, from.month, from.day);
     start = TimeOfDay.fromDateTime(from);
     endDate = DateTime(until.year, until.month, until.day);
     end = TimeOfDay.fromDateTime(until);
-    selectedSlotId = null;
     availabilityRows = [];
     _availabilityLot = null;
     _availabilityRequest++;
@@ -196,33 +199,54 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
   void setDuration(int hours) =>
       setReservationPeriod(startsAt, startsAt.add(Duration(hours: hours)));
 
+  void selectBookingVehicleKind(String kind) {
+    if (!bookingVehicleKinds.contains(kind)) {
+      throw const ParkFailure('Bạn chưa thêm phương tiện thuộc loại này.');
+    }
+    _bookingVehicleKind = kind;
+    final eligible = bookingVehicles;
+    final preferred =
+        eligible.where((v) => v.id == selectedVehicleId).firstOrNull ??
+        eligible.where((v) => v.isDefault).firstOrNull ??
+        eligible.first;
+    if (selectedVehicleId == preferred.id) {
+      _notify();
+      return;
+    }
+    selectVehicle(preferred.id);
+  }
+
   void selectVehicle(String? id) {
+    if (id != null && !bookingVehicles.any((v) => v.id == id)) {
+      throw const ParkFailure('Chọn xe thuộc loại phương tiện đang đặt.');
+    }
     if (selectedVehicleId == id) return;
     selectedVehicleId = id;
-    selectedSlotId = null;
     _availabilityLot = null;
     availabilityVehicleConflict = null;
     _notify();
     unawaited(loadAvailability());
   }
 
-  Future<void> prepareBooking({bool requireSlot = true}) async {
+  Future<void> prepareBooking() async {
+    if (bookingVehicleKind == null) {
+      throw const ParkFailure(
+        'Chọn loại phương tiện trước khi chọn thời gian.',
+      );
+    }
     validateReservation(startsAt, endsAt, DateTime.now());
     if (vehicle.id.isEmpty) {
       throw const ParkFailure('Thêm phương tiện trước khi chọn chỗ đỗ.');
     }
     final lotId = lot.id, vehicleId = vehicle.id;
-    final actor = userId, originalSlot = selectedSlotId;
+    final actor = userId;
     final from = startsAt, until = endsAt;
     await loadAvailability();
     if (userId != actor ||
         lot.id != lotId ||
         vehicle.id != vehicleId ||
         startsAt != from ||
-        endsAt != until ||
-        (requireSlot &&
-            selectedSlotId != null &&
-            selectedSlotId != originalSlot)) {
+        endsAt != until) {
       throw const ParkFailure(
         'Thông tin đặt chỗ vừa thay đổi. Vui lòng kiểm tra lại.',
       );
@@ -238,33 +262,14 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
         code: 'VEHICLE_TIME_CONFLICT',
       );
     }
-    if (requireSlot && !canContinueBooking) {
+    if (!canContinueBooking) {
       throw const ParkFailure(
-        'Ô vừa chọn không còn trống trong khoảng giờ này. Hãy chọn ô khác.',
-        code: 'SLOT_TIME_CONFLICT',
+        'Bãi đã hết chỗ cho loại xe này trong khoảng giờ đã chọn. Hãy đổi thời gian.',
+        code: 'CAPACITY_FULL',
       );
     }
   }
 
-  String get slot =>
-      (availabilityReady ? bookingSlots : slots)
-              .where((s) => s['id'] == selectedSlotId)
-              .firstOrNull?['code']
-          as String? ??
-      '';
-  set slot(String code) {
-    selectedSlotId =
-        (availabilityReady ? bookingSlots : slots)
-                .where((s) => s['code'] == code)
-                .firstOrNull?['id']
-            as String?;
-  }
-
-  Set<String> get occupied =>
-      slots
-          .where((s) => s['occupied'] == true || s['enabled'] == false)
-          .map((s) => s['code'] as String)
-          .toSet();
   List<Vehicle> get vehicles =>
       snapshot
           .rows('vehicles')
@@ -281,11 +286,28 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
           )
           .toList();
   String? selectedVehicleId;
-  Vehicle get vehicle =>
-      vehicles.where((v) => v.id == selectedVehicleId).firstOrNull ??
-      vehicles.where((v) => v.isDefault).firstOrNull ??
-      vehicles.firstOrNull ??
-      const Vehicle('', 'Chưa có phương tiện', '');
+  String? _bookingVehicleKind;
+  List<String> get bookingVehicleKinds =>
+      [
+        'car',
+        'motorcycle',
+      ].where((kind) => vehicles.any((v) => v.kind == kind)).toList();
+  String? get bookingVehicleKind {
+    final kinds = bookingVehicleKinds;
+    if (kinds.length == 1) return kinds.single;
+    return kinds.contains(_bookingVehicleKind) ? _bookingVehicleKind : null;
+  }
+
+  List<Vehicle> get bookingVehicles =>
+      vehicles.where((v) => v.kind == bookingVehicleKind).toList();
+  Vehicle get vehicle {
+    final eligible = bookingVehicleKind == null ? vehicles : bookingVehicles;
+    return eligible.where((v) => v.id == selectedVehicleId).firstOrNull ??
+        eligible.where((v) => v.isDefault).firstOrNull ??
+        eligible.firstOrNull ??
+        const Vehicle('', 'Chưa có phương tiện', '');
+  }
+
   int get total =>
       durationMinutes <= 0
           ? 0
@@ -324,12 +346,13 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
           ...projected,
           'status': 'completed',
           'checked_out_at': op.payload['occurred_at'],
-          'amount': calculateFee(
-            DateTime.parse(projected['checked_in_at'] as String),
-            DateTime.parse(op.payload['occurred_at'] as String),
-            projected['hourly_rate'] as int,
-            projected['free_minutes'] as int,
-          ),
+          'amount':
+              projected['prepaid'] == true
+                  ? projected['amount']
+                  : checkoutAmount(
+                    projected,
+                    DateTime.parse(op.payload['occurred_at'] as String),
+                  ),
           'version': (projected['version'] as int) + 1,
           'local_pending': true,
         };
@@ -394,9 +417,10 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
           operations = [];
           rejections = [];
           selectedLotId = null;
-          selectedSlotId = null;
+          selectedVehicleId = null;
+          _bookingVehicleKind = null;
           selectedBookingId = null;
-          scannedQr = null;
+          selectedBookingId = null;
           notificationToOpen = null;
           _lastUserId = userId;
           _notify();
@@ -558,25 +582,16 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
           lot.id == id &&
           startsAt == startTime &&
           endsAt == endTime) {
-        availabilityRows = next.slots;
+        availabilityRows = next.capacities;
         availabilityVehicleConflict = next.vehicleConflict;
         _availabilityVehicle = vehicleId;
         _availabilityLot = id;
         _availabilityStart = startTime;
         _availabilityEnd = endTime;
-        if (next.vehicleConflict != null ||
-            !next.slots.any(
-              (s) =>
-                  s['id'] == selectedSlotId &&
-                  s['enabled'] == true &&
-                  s['occupied'] == false,
-            )) {
-          selectedSlotId = null;
-        }
         // Persist availability with the scoped snapshot for offline reading.
         snapshot = ParkingSnapshot({
           ...snapshot.data,
-          'availability': next.slots,
+          'availability': next.capacities,
           'availability_lot': id,
           'availability_start': startTime.toIso8601String(),
           'availability_end': endTime.toIso8601String(),
@@ -586,7 +601,6 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
       if (!_disposed && request == _availabilityRequest && userId == actor) {
         availabilityError = e.toString();
         _availabilityLot = null;
-        selectedSlotId = null;
       }
     } finally {
       if (request == _availabilityRequest) availabilityLoading = false;
@@ -632,72 +646,110 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
 
   String? _bookingOperation;
   Json? _bookingPayload;
-  Future<void> book() async {
-    validateReservation(startsAt, endsAt, DateTime.now());
-    final previousSlot = _bookingPayload?['slot_id'];
-    final sameAttempt =
-        _bookingPayload?['vehicle_id'] == vehicle.id &&
-        _bookingPayload?['starts_at'] == startsAt.toUtc().toIso8601String() &&
-        _bookingPayload?['ends_at'] == endsAt.toUtc().toIso8601String() &&
-        slots.any((slot) => slot['id'] == previousSlot);
-    final requestedSlot = selectedSlotId ?? (sameAttempt ? previousSlot : null);
-    if (requestedSlot == null || vehicle.id.isEmpty) {
-      throw const ParkFailure('Chọn chỗ đỗ và thêm phương tiện trước.');
+  Future<Json> paymentRequest({Json? booking, DateTime? newEnd}) async {
+    final actor = userId;
+    if (actor == null) throw const ParkFailure('Vui lòng đăng nhập.');
+    if (booking != null) {
+      if (booking['customer_id'] != actor ||
+          booking['status'] != 'parked' ||
+          booking['prepaid'] != true ||
+          booking['local_pending'] == true ||
+          newEnd == null) {
+        throw const ParkFailure(
+          'Chỉ thanh toán gia hạn vé trả trước đang gửi của chính bạn.',
+        );
+      }
+      final end = newEnd.toUtc().toIso8601String();
+      if (_extensionPayload?['booking_id'] != booking['id'] ||
+          _extensionPayload?['ends_at'] != end) {
+        _extensionOperation = const Uuid().v4();
+        _extensionPayload = {
+          'booking_id': booking['id'],
+          'ends_at': end,
+          'expected_version': booking['version'],
+          'expected_amount': extensionFee(booking, newEnd),
+        };
+      }
+      return {
+        'operationId': _extensionOperation,
+        'kind': 'booking.extend.pay',
+        'payload': _extensionPayload,
+      };
     }
     final request = <String, dynamic>{
       'vehicle_id': vehicle.id,
-      'slot_id': requestedSlot,
+      'lot_id': lot.id,
       'starts_at': startsAt.toUtc().toIso8601String(),
       'ends_at': endsAt.toUtc().toIso8601String(),
+      'expected_amount': total,
     };
-    // Keep IDs on an ambiguous network failure, so retry cannot double-book.
     final retrying =
         _bookingPayload != null &&
         request.entries.every((e) => _bookingPayload![e.key] == e.value);
-    // A lost acknowledgement may have already created this booking. Replay its
-    // receipt before preflight so it never conflicts with its own successful write.
+    // Replay the same payment after a lost acknowledgement before preflight.
     if (!retrying) {
       await prepareBooking();
+      if (userId != actor)
+        throw const ParkFailure(
+          'Tài khoản đã thay đổi. Vui lòng đăng nhập lại.',
+        );
       _bookingOperation = const Uuid().v4();
       _bookingPayload = {...request, 'id': const Uuid().v4()};
     }
-    late Json result;
+    return {
+      'operationId': _bookingOperation,
+      'kind': 'booking.pay',
+      'payload': _bookingPayload,
+    };
+  }
+
+  Future<void> book() => payBooking();
+
+  Future<void> payBooking({Json? booking, DateTime? newEnd}) async {
+    final actor = userId;
+    final request = await paymentRequest(booking: booking, newEnd: newEnd);
     try {
-      result = await backend.execute(
-        _bookingOperation!,
-        'booking.create',
-        _bookingPayload!,
+      final result = await backend.execute(
+        request['operationId'] as String,
+        request['kind'] as String,
+        request['payload'] as Json,
       );
+      await acceptPaidBooking(result, actor!, extension: booking != null);
     } on ParkFailure catch (e) {
-      if (!e.retryable) {
-        _bookingOperation = null;
-        _bookingPayload = null;
-      }
-      if ([
-        'VEHICLE_TIME_CONFLICT',
-        'SLOT_TIME_CONFLICT',
-        'SLOT_UNAVAILABLE',
-        '23P01',
-      ].contains(e.code)) {
+      // Insufficient funds may be topped up; retain the same operation ID.
+      if (!e.retryable && e.code != 'INSUFFICIENT_BALANCE')
+        clearPayment(extension: booking != null);
+      if (booking == null &&
+          [
+            'CAPACITY_FULL',
+            'VEHICLE_TIME_CONFLICT',
+            '23P01',
+          ].contains(e.code)) {
         await loadAvailability();
-        if (vehicleConflict != null) {
-          throw ParkFailure(
-            backendMessage('VEHICLE_TIME_CONFLICT'),
-            code: 'VEHICLE_TIME_CONFLICT',
-          );
-        }
-        selectedSlotId = null;
-        _notify();
       }
+      if (e.code == 'PRICE_CHANGED') await refresh();
       rethrow;
     }
-    if (result['deleted'] == true) {
-      _bookingPayload = null;
+  }
+
+  void clearPayment({bool extension = false}) {
+    if (extension) {
+      _extensionOperation = null;
+      _extensionPayload = null;
+    } else {
       _bookingOperation = null;
-      await refresh();
+      _bookingPayload = null;
+    }
+  }
+
+  Future<void> acceptPaidBooking(
+    Json result,
+    String actor, {
+    bool extension = false,
+  }) async {
+    if (userId != actor) {
       throw const ParkFailure(
-        'Vé chưa sử dụng đã quá hạn và bị xóa. Vui lòng đặt vé mới.',
-        code: 'TICKET_EXPIRED',
+        'Tài khoản đã thay đổi. Hãy kiểm tra vé trong tài khoản ban đầu.',
       );
     }
     selectedBookingId = result['id'] as String;
@@ -708,8 +760,7 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
         ...bookings.where((b) => b['id'] != selectedBookingId),
       ],
     });
-    _bookingPayload = null;
-    _bookingOperation = null;
+    clearPayment(extension: extension);
     _notify();
     await refresh();
   }
@@ -725,6 +776,9 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
   String? _extensionOperation;
   Json? _extensionPayload;
   Future<void> extendBooking(Json booking, DateTime newEnd) async {
+    if (booking['prepaid'] == true) {
+      return payBooking(booking: booking, newEnd: newEnd);
+    }
     final actor = userId;
     if (actor == null ||
         booking['customer_id'] != actor ||
@@ -893,22 +947,26 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     await refresh();
   }
 
-  Future<void> openTicket(String qr) async {
-    final identity = TicketIdentity.parse(qr);
-    await refresh();
-    final found =
-        bookings
-            .where(
-              (b) => b['id'] == identity.id && b['qr_token'] == identity.token,
-            )
-            .firstOrNull;
-    if (found == null) {
+  Future<void> openPlate(String plate) async {
+    final actor = userId, lotId = lot.id;
+    final normalized = normalizePlate(plate);
+    if (!isValidPlate(normalized)) {
+      throw const ParkFailure('Biển số không hợp lệ.');
+    }
+    final found = await backend.execute(const Uuid().v4(), 'staff.lookup', {
+      'lot_id': lotId,
+      'plate': normalized,
+    });
+    if (userId != actor || lot.id != lotId) {
       throw const ParkFailure(
-        'Vé không còn hiệu lực, đã bị xóa hoặc chưa có trong dữ liệu được cấp quyền. Vui lòng kiểm tra vé và kết nối mạng.',
+        'Tài khoản hoặc bãi đã thay đổi. Hãy xác nhận lại biển số.',
       );
     }
-    selectedBookingId = identity.id;
-    scannedQr = identity.encoded;
+    snapshot = ParkingSnapshot({
+      ...snapshot.data,
+      'bookings': [found, ...bookings.where((b) => b['id'] != found['id'])],
+    });
+    selectedBookingId = found['id'] as String;
     _notify();
   }
 
@@ -918,15 +976,7 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     DateTime? checkoutAt,
   }) async {
     final b = ticket;
-    if (b == null || scannedQr == null) {
-      throw const ParkFailure('Quét QR của vé trước.');
-    }
-    final identity = TicketIdentity.parse(scannedQr!);
-    if (identity.id != b['id'] || identity.token != b['qr_token']) {
-      throw const ParkFailure(
-        'QR không khớp vé đang mở. Vui lòng quét lại QR của vé này.',
-      );
-    }
+    if (b == null) throw const ParkFailure('Xác nhận biển số và tìm vé trước.');
     if (!canStaff) throw const ParkFailure('Tài khoản chưa được phân công.');
     if (normalizePlate(plate) != b['plate']) {
       throw const ParkFailure('Biển số không khớp vé.');
@@ -964,7 +1014,6 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     }
     await _queue(entering ? 'staff.check_in' : 'staff.check_out', {
       'booking_id': b['id'],
-      'qr_token': identity.token,
       'expected_version': b['version'],
       'plate': normalizePlate(plate),
       'occurred_at': observed.toIso8601String(),
@@ -1062,6 +1111,8 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     }
     await deviceNotifications?.unregister();
     await backend.signOut();
+    selectedVehicleId = null;
+    _bookingVehicleKind = null;
     _extensionOperation = null;
     _extensionPayload = null;
     snapshot = ParkingSnapshot.empty;

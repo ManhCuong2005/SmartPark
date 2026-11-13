@@ -6,6 +6,10 @@ export type Lot = {
   name: string;
   area: string;
   capacity: number;
+  carCapacity: number;
+  motorcycleCapacity: number;
+  carRemaining: number;
+  motorcycleRemaining: number;
   enabledCapacity: number;
   occupied: number;
   availableSlots: number;
@@ -17,13 +21,11 @@ export type Lot = {
 };
 
 export type BookingStatus =
-  | "Đã xác nhận"
-  | "Đang sử dụng"
-  | "Hoàn thành"
-  | "Đã hủy"
-  | "Hết hạn";
+  "Đã xác nhận" | "Đang sử dụng" | "Hoàn thành" | "Đã hủy" | "Hết hạn";
 
-export type VehicleKind = "car" | "motorcycle";
+export type VehicleKind = "car" | "motorcycle" | "unknown";
+export const vehicleKindLabel = (kind: VehicleKind) =>
+  kind === "car" ? "Ô tô" : kind === "motorcycle" ? "Xe máy" : "Chưa xác định";
 
 export type Booking = {
   id: string;
@@ -48,6 +50,7 @@ export type Booking = {
   freeMinutes: number;
   amount: number;
   version: number;
+  prepaid?: boolean;
   checkedIn: string | null;
   checkedOut: string | null;
 };
@@ -88,14 +91,6 @@ export type Payment = {
   freeMinutes: number;
 };
 
-export type Slot = {
-  id: string;
-  lotId: string;
-  code: string;
-  enabled: boolean;
-  occupied: boolean;
-};
-
 export type VehicleInfo = {
   id: string;
   userId: string;
@@ -115,23 +110,25 @@ export type AdminNotification = {
 };
 
 export type AdminData = {
+  reports: Row[];
+  reportEvents: Row[];
   lots: Lot[];
   bookings: Booking[];
   staff: Staff[];
   pricing: Record<string, Pricing>;
   payments: Payment[];
-  slots: Slot[];
   vehicles: VehicleInfo[];
   notifications: AdminNotification[];
 };
 
 export const emptyData: AdminData = {
+  reports: [],
+  reportEvents: [],
   lots: [],
   bookings: [],
   staff: [],
   pricing: {},
   payments: [],
-  slots: [],
   vehicles: [],
   notifications: [],
 };
@@ -145,8 +142,7 @@ export function compactMoney(n: number): string {
     return `${(n / 1_000_000_000).toFixed(1).replace(".", ",")} tỷ`;
   if (abs >= 1_000_000)
     return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "").replace(".", ",")} tr`;
-  if (abs >= 1_000)
-    return `${Math.round(n / 1_000)}k`;
+  if (abs >= 1_000) return `${Math.round(n / 1_000)}k`;
   return `${Math.round(n)}đ`;
 }
 
@@ -160,7 +156,10 @@ export const shifts = {
   night: "Ca đêm",
 };
 
-export const shiftTimes: Record<keyof typeof shifts, { label: string; time: string; color: string }> = {
+export const shiftTimes: Record<
+  keyof typeof shifts,
+  { label: string; time: string; color: string }
+> = {
   morning: { label: "Ca sáng", time: "06:00 – 14:00", color: "#315fea" },
   afternoon: { label: "Ca chiều", time: "14:00 – 22:00", color: "#17b29a" },
   night: { label: "Ca đêm", time: "22:00 – 06:00", color: "#7b61da" },
@@ -179,7 +178,9 @@ export function formatTime(value: string | Date | null | undefined): string {
   return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function formatDateTime(value: string | Date | null | undefined): string {
+export function formatDateTime(
+  value: string | Date | null | undefined,
+): string {
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
@@ -214,7 +215,9 @@ export function estimateParkingFee(
   hourlyRate: number,
   _freeMinutes: number,
 ): number {
-  return Math.max(1, Math.ceil(Math.max(0, minutes) / 60)) * Math.max(0, hourlyRate);
+  return (
+    Math.max(1, Math.ceil(Math.max(0, minutes) / 60)) * Math.max(0, hourlyRate)
+  );
 }
 
 export const statusLabels: Record<string, BookingStatus> = {

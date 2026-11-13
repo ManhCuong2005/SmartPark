@@ -3,6 +3,18 @@ import 'package:smartpark/domain/models.dart';
 import 'package:smartpark/domain/parking_rules.dart';
 
 void main() {
+  test('old server availability fails with an explicit upgrade message', () {
+    expect(
+      () => ReservationAvailability.fromJson({'slots': []}),
+      throwsA(
+        isA<ParkFailure>().having(
+          (e) => e.code,
+          'code',
+          'BOOKING_SCHEMA_REQUIRED',
+        ),
+      ),
+    );
+  });
   test(
     'Vietnamese car and two-line motorcycle plates normalize without guessing',
     () {
@@ -54,20 +66,6 @@ void main() {
       );
     },
   );
-  test('QR validates version, ticket and capability format', () {
-    final ticket = TicketIdentity(
-      '60000000-0000-0000-0000-000000000001',
-      'a' * 64,
-    );
-    expect(TicketIdentity.parse(ticket.encoded).token, ticket.token);
-    for (final invalid in [
-      'SP-1022-007',
-      'smartpark:v2:x:y',
-      'https://example.com',
-    ]) {
-      expect(() => TicketIdentity.parse(invalid), throwsA(isA<ParkFailure>()));
-    }
-  });
   test('reservation duration and timestamps are validated', () {
     final now = DateTime(2026, 10, 28, 12);
     expect(

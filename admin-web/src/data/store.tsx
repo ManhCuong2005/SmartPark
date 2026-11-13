@@ -9,18 +9,8 @@ import {
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import {
-  emptyData,
-  formatTime,
-  localDate,
-  statusLabels,
-} from "./models";
-import type {
-  AdminData,
-  AdminNotification,
-  Row,
-  VehicleKind,
-} from "./models";
+import { emptyData, formatTime, localDate, statusLabels } from "./models";
+import type { AdminData, AdminNotification, Row, VehicleKind } from "./models";
 import { AdminLogin } from "../components/admin-auth";
 
 type Store = {
@@ -38,7 +28,7 @@ type Store = {
 const Context = createContext<Store | null>(null);
 
 function normalizeKind(raw: unknown): VehicleKind {
-  return raw === "motorcycle" ? "motorcycle" : "car";
+  return raw === "motorcycle" || raw === "car" ? raw : "unknown";
 }
 
 function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
@@ -72,7 +62,17 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
 
   const lots = own.map((l) => {
     const lid = String(l.id);
-    const lotSlots = slots.filter((s) => String(s.lot_id) === lid);
+    const counts = (raw.capacities ?? []).filter(
+      (c) => String(c.lot_id) === lid,
+    );
+    const carRemaining = Number(
+      counts.find((c) => c.kind === "car")?.remaining ?? 0,
+    );
+    const motorcycleRemaining = Number(
+      counts.find((c) => c.kind === "motorcycle")?.remaining ?? 0,
+    );
+    const capacity =
+      Number(l.car_capacity ?? 0) + Number(l.motorcycle_capacity ?? 0);
     const occupied = bookings.filter(
       (b) => String(b.lot_id) === lid && b.status === "parked",
     ).length;
@@ -81,12 +81,14 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
       name: String(l.name ?? ""),
       area: String(l.area ?? ""),
       enabled: l.enabled === true,
-      capacity: lotSlots.length,
-      enabledCapacity: lotSlots.filter((s) => s.enabled === true).length,
+      capacity,
+      carCapacity: Number(l.car_capacity ?? 0),
+      motorcycleCapacity: Number(l.motorcycle_capacity ?? 0),
+      carRemaining,
+      motorcycleRemaining,
+      enabledCapacity: l.enabled === true ? capacity : 0,
       occupied,
-      availableSlots: lotSlots.filter(
-        (s) => s.enabled === true && s.occupied !== true,
-      ).length,
+      availableSlots: carRemaining + motorcycleRemaining,
       version: Number(l.version ?? 0),
       latitude: l.latitude == null ? null : Number(l.latitude),
       longitude: l.longitude == null ? null : Number(l.longitude),
@@ -107,7 +109,7 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
       customerPhone: String(customerProfile?.phone ?? ""),
       plate: String(b.plate ?? ""),
       vehicleId: String(b.vehicle_id ?? ""),
-      vehicleKind: normalizeKind(vehicle?.kind),
+      vehicleKind: normalizeKind(b.vehicle_kind ?? vehicle?.kind),
       vehicleLabel: String(vehicle?.label ?? ""),
       lotId: String(b.lot_id),
       slotId: String(b.slot_id ?? ""),
@@ -122,6 +124,7 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
       hourlyRate: Number(b.hourly_rate ?? 0),
       freeMinutes: Number(b.free_minutes ?? 0),
       amount: Number(b.amount ?? 0),
+      prepaid: b.prepaid === true,
       version: Number(b.version ?? 0),
       checkedIn: b.checked_in_at == null ? null : String(b.checked_in_at),
       checkedOut: b.checked_out_at == null ? null : String(b.checked_out_at),
@@ -177,7 +180,7 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
         lotName: String(lot?.name ?? ""),
         plate: String(booking?.plate ?? ""),
         customerName: String(customer?.name ?? ""),
-        vehicleKind: normalizeKind(vehicle?.kind),
+        vehicleKind: normalizeKind(booking?.vehicle_kind ?? vehicle?.kind),
         checkedInAt:
           booking?.checked_in_at == null ? null : String(booking.checked_in_at),
         checkedOutAt:
@@ -189,14 +192,6 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
       };
     })
     .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
-
-  const normalizedSlots = slots.map((s) => ({
-    id: String(s.id),
-    lotId: String(s.lot_id),
-    code: String(s.code ?? ""),
-    enabled: s.enabled === true,
-    occupied: s.occupied === true,
-  }));
 
   const vehicles = rawVehicles.map((v) => ({
     id: String(v.id),
@@ -221,11 +216,12 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
 
   return {
     lots,
+    reports: (raw.reports ?? []).filter((r) => lotById.has(String(r.lot_id))),
+    reportEvents: raw.report_events ?? [],
     bookings: normalizedBookings,
     staff,
     pricing,
     payments,
-    slots: normalizedSlots,
     vehicles,
     notifications,
   };
@@ -330,7 +326,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     const channel = supabase.channel(`admin:${session.user.id}`);
     for (const table of [
       "parking_lots",
-      "parking_slots",
+      "parking_reports",
+      "report_events",
       "lot_staff",
       "bookings",
       "vehicles",
@@ -492,6 +489,21 @@ function message(e: unknown) {
       : String(e);
   if (text.includes("park_snapshot") || text.includes("schema cache"))
     return "Chưa có backend SmartPark. Chạy migration trong Supabase SQL Editor rồi tải lại.";
+  if (text.includes("CAPACITY_CONFLICT"))
+    return (
+      "Không thể giảm sức chứa: " +
+      (e && typeof e === "object" && "details" in e
+        ? String(e.details)
+        : "mức mới xung đột với vé còn hiệu lực.")
+    );
+  if (text.includes("PARKED_OWNER_NOT_FOUND"))
+    return "Chưa tìm thấy xe đang gửi với biển số này. Hãy giao nhân viên kiểm tra hiện trường.";
+  if (text.includes("STAFF_NOT_ASSIGNED"))
+    return "Nhân viên chưa được phân công hoặc đã ngừng làm việc tại bãi này.";
+  if (text.includes("REPORT_NOT_FOUND"))
+    return "Không tìm thấy báo cáo được cấp quyền.";
+  if (text.includes("INVALID_STATE"))
+    return "Trạng thái báo cáo hoặc vé đã thay đổi. Hãy tải lại để kiểm tra.";
   if (text.includes("VERSION_CONFLICT"))
     return "Dữ liệu đã thay đổi trên thiết bị khác. Tải lại trước khi sửa.";
   if (text.includes("USER_MUST_REGISTER_FIRST"))
@@ -499,7 +511,7 @@ function message(e: unknown) {
   if (text.includes("USER_EMAIL_NOT_CONFIRMED"))
     return "Tài khoản này chưa xác nhận email. Hãy xác nhận email trước khi cấp quyền nhân viên.";
   if (text.includes("FORBIDDEN"))
-    return "Bạn chỉ có thể cấp hoặc thu hồi quyền nhân viên tại bãi do mình quản lý.";
+    return "Bạn không có quyền thực hiện thao tác tại bãi này.";
   return text;
 }
 

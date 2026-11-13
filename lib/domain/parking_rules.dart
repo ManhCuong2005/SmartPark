@@ -38,29 +38,40 @@ int calculateFee(
 void validateReservation(DateTime start, DateTime end, DateTime now) {
   if (!end.isAfter(start) ||
       start.isBefore(now.subtract(const Duration(minutes: 5))) ||
+      !end.isAfter(now) ||
       end.difference(start) > const Duration(days: 7)) {
     throw const ParkFailure('Chọn giờ vào/ra hợp lệ, tối đa 7 ngày.');
   }
 }
 
+int checkoutAmount(Json booking, DateTime exit) =>
+    booking['prepaid'] == true
+        ? 0
+        : calculateFee(
+          DateTime.parse(booking['checked_in_at'] as String),
+          exit,
+          booking['hourly_rate'] as int,
+          booking['free_minutes'] as int,
+        );
+
+int extensionFee(Json booking, DateTime newEnd) => calculateFee(
+  DateTime.parse(booking['ends_at'] as String),
+  newEnd,
+  booking['hourly_rate'] as int,
+  0,
+);
+
 DateTime noShowDeadline(DateTime scheduledEnd) => scheduledEnd;
 
-/// A late arrival keeps the purchased duration; early admission reserves the
-/// actual arrival too. The server must approve the resulting interval atomically.
+/// Only early, valid admission changes the reserved start; never shift an expired ticket.
 ({DateTime start, DateTime end}) admissionPeriod(
   DateTime scheduledStart,
   DateTime scheduledEnd,
   DateTime arrival,
-) =>
-    !arrival.isBefore(scheduledEnd)
-        ? (
-          start: arrival,
-          end: arrival.add(scheduledEnd.difference(scheduledStart)),
-        )
-        : (
-          start: arrival.isBefore(scheduledStart) ? arrival : scheduledStart,
-          end: scheduledEnd,
-        );
+) => (
+  start: arrival.isBefore(scheduledStart) ? arrival : scheduledStart,
+  end: scheduledEnd,
+);
 
 bool isTransientCode(String? code) =>
     code == null ||
@@ -84,6 +95,31 @@ Duration retryDelay(int attempts) =>
 
 String backendMessage(String code) {
   const errors = {
+    'BOOKING_PAYMENT_SCHEMA_REQUIRED':
+        'Máy chủ chưa được cập nhật tính năng thanh toán vé. Vui lòng liên hệ quản trị viên.',
+    'UNKNOWN_OPERATION':
+        'Máy chủ chưa hỗ trợ thao tác này. Vui lòng cập nhật phiên bản backend tương ứng.',
+    'INSUFFICIENT_BALANCE':
+        'Số dư chưa đủ. Hãy nạp thêm hoặc thanh toán bằng QR.',
+    'PAYMENT_REQUIRED':
+        'Vé cần được thanh toán trước. Vui lòng mở lại bước thanh toán.',
+    'PRICE_CHANGED':
+        'Bảng giá đã thay đổi. Hãy tải lại thông tin và kiểm tra số tiền trước khi thanh toán.',
+    'QR_AMOUNT_UNSUPPORTED':
+        'QR hỗ trợ từ 2.000đ đến 5.000.000đ. Hãy dùng số dư để thanh toán khoản này.',
+    'OPERATION_ID_REUSED':
+        'Yêu cầu thanh toán đã thay đổi. Hãy mở lại thông tin vé.',
+    'PLATE_AMBIGUOUS':
+        'Có nhiều vé cũ cùng biển số đang hiệu lực. Liên hệ chủ bãi kiểm tra trước khi nhận xe.',
+    'CAPACITY_FULL':
+        'Bãi đã hết chỗ cho loại xe này trong thời gian đã chọn. Hãy đổi giờ hoặc bãi.',
+    'VALID_TICKET_REQUIRED':
+        'Không tìm thấy vé hợp lệ tại bãi trong thời gian này. Vé chưa vào đã quá giờ ra không được check-in.',
+    'INVALID_PLATE': 'Biển số không hợp lệ. Vui lòng kiểm tra lại.',
+    'REPORT_NOT_FOUND': 'Không tìm thấy báo cáo được cấp quyền.',
+    'PARKED_OWNER_NOT_FOUND':
+        'Chưa tìm thấy xe đang gửi với biển số này. Có thể giao nhân viên kiểm tra.',
+    'STAFF_NOT_ASSIGNED': 'Nhân viên chưa được phân công tại bãi này.',
     'VERSION_CONFLICT':
         'Dữ liệu đã thay đổi trên thiết bị khác. Tải lại và kiểm tra thao tác.',
     'SLOT_UNAVAILABLE': 'Chỗ đỗ không còn khả dụng. Vui lòng chọn lại.',
@@ -98,7 +134,6 @@ String backendMessage(String code) {
     'INVALID_STATE':
         'Trạng thái hoặc thời gian vé không cho phép thao tác này.',
     'PLATE_MISMATCH': 'Biển số không khớp vé. Kiểm tra lại trước khi xác nhận.',
-    'INVALID_QR': 'QR không khớp vé trên hệ thống.',
     'CLOCK_REVIEW_REQUIRED':
         'Thời gian thiết bị cần được kiểm tra bởi chủ bãi.',
     'VEHICLE_IN_USE':

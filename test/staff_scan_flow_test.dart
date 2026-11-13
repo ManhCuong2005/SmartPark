@@ -1,3 +1,4 @@
+import 'package:smartpark/domain/plate_recognition_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,9 +7,20 @@ import 'package:smartpark/presentation/features/staff/operational_screens.dart';
 import 'package:smartpark/presentation/park_controller.dart';
 import 'support/test_repository.dart';
 
+class ScanRecognition implements PlateRecognitionService {
+  @override
+  Future<List<String>?> captureAndRecognize() async => ['43A12345'];
+}
+
 class ScanRepository extends TestRepository {
   ScanRepository(this.parked) : super(staff: true, offline: true);
   final bool parked;
+  @override
+  Future<Json> execute(String id, String kind, Json payload) async {
+    if (kind == 'staff.lookup') return fixture().rows('bookings').single;
+    return super.execute(id, kind, payload);
+  }
+
   @override
   ParkingSnapshot fixture() {
     final original = super.fixture();
@@ -42,7 +54,11 @@ void main() {
         );
         try {
           final backend = ScanRepository(scenario == 'exit');
-          final state = ParkController(backend, monitorConnectivity: false);
+          final state = ParkController(
+            backend,
+            monitorConnectivity: false,
+            plateService: ScanRecognition(),
+          );
           addTearDown(state.dispose);
           await state.initialize();
           await tester.pumpWidget(
@@ -62,15 +78,12 @@ void main() {
           );
           await tester.pumpAndSettle();
           final dynamic scanner = tester.state(find.byType(StaffScannerScreen));
+          await tester.tap(find.text('Chụp biển số · AI OCR'));
+          await tester.pumpAndSettle();
+          expect(find.byType(ActionChip), findsOneWidget);
           final booking = state.bookings.single;
           final pending =
-              scanner.open(
-                    TicketIdentity(
-                      booking['id'] as String,
-                      booking['qr_token'] as String,
-                    ).encoded,
-                  )
-                  as Future<void>;
+              scanner.open(booking['plate'] as String) as Future<void>;
           await tester.pumpAndSettle();
           expect(find.text('Xác nhận vé'), findsOneWidget);
           await tester.enterText(
@@ -91,13 +104,14 @@ void main() {
           await tester.pumpAndSettle();
           if (scenario == 'enter' || scenario == 'exit') {
             await pending;
-            expect(find.text('Quét mã QR'), findsOneWidget);
+            expect(find.text('Quét biển số'), findsOneWidget);
             expect(
               tester.state(find.byType(StaffScannerScreen)),
               same(scanner),
             );
             expect(scanner.processing, false);
-            expect(state.scannedQr, isNull);
+            expect(scanner.plate.text, isEmpty);
+            expect(find.byType(ActionChip), findsNothing);
             expect(backend.queued, hasLength(1));
             expect(
               backend.queued.single.kind,
@@ -106,7 +120,7 @@ void main() {
           } else {
             expect(find.text('Xác nhận vé'), findsOneWidget);
             expect(backend.queued, isEmpty);
-            expect(state.scannedQr, isNotNull);
+            expect(state.selectedBookingId, isNotNull);
             if (scenario == 'invalid_plate') {
               expect(find.text('Biển số không khớp vé.'), findsOneWidget);
             }

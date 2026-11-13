@@ -60,8 +60,6 @@ void main() {
       await state.initialize();
       final b = state.bookings.single;
       state.selectedBookingId = b['id'] as String;
-      state.scannedQr =
-          TicketIdentity(b['id'] as String, b['qr_token'] as String).encoded;
       await state.staffAction(false, b['plate'] as String);
       expect(state.ticket!['status'], 'completed');
       expect(state.ticket!['amount'], 15000);
@@ -78,16 +76,11 @@ void main() {
       await state.initialize();
       final booking = state.bookings.single;
       state.selectedBookingId = booking['id'] as String;
-      state.scannedQr =
-          TicketIdentity(
-            booking['id'] as String,
-            booking['qr_token'] as String,
-          ).encoded;
       await tester.pumpWidget(
         MaterialApp(
           routes: {
             '/staff/scan':
-                (_) => const Scaffold(body: Text('Quét QR tiếp theo')),
+                (_) => const Scaffold(body: Text('Biển số tiếp theo')),
           },
           home: AnimatedBuilder(
             animation: state,
@@ -113,8 +106,8 @@ void main() {
       expect(backend.queued.single.kind, 'staff.check_out');
       expect(state.ticket!['amount'], 15000);
       expect(state.ticket!['local_pending'], true);
-      expect(find.text('Quét QR tiếp theo'), findsOneWidget);
-      expect(state.scannedQr, isNull);
+      expect(find.text('Biển số tiếp theo'), findsOneWidget);
+      expect(state.selectedBookingId, isNotNull);
       expect(find.text('Đã thu'), findsNothing);
       expect(tester.takeException(), isNull);
     },

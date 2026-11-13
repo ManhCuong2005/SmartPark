@@ -1,6 +1,5 @@
 export 'booking_history_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../../park_controller.dart';
 import '../../../shared/widgets/park_widgets.dart';
 import 'booking_extension_sheet.dart';
@@ -26,11 +25,6 @@ class TicketScreen extends StatelessWidget {
       );
     }
     final lot = repository.lots.where((l) => l.id == b['lot_id']).firstOrNull;
-    final slot =
-        repository.snapshot
-            .rows('slots')
-            .where((s) => s['id'] == b['slot_id'])
-            .firstOrNull;
     final active = ['confirmed', 'parked'].contains(b['status']);
     return ParkPage(
       bottom: const ParkBottomNav(active: 2),
@@ -67,26 +61,19 @@ class TicketScreen extends StatelessWidget {
                   child: Column(
                     children: [
                       Txt(lot?.name ?? '', size: 19, weight: FontWeight.w700),
-                      Text('${slot?['code'] ?? ''} · ${b['plate']}'),
-                      const SizedBox(height: 20),
-                      if (active)
-                        Semantics(
-                          label: 'Mã QR vé điện tử',
-                          child: QrImageView(
-                            data:
-                                TicketIdentity(
-                                  b['id'] as String,
-                                  b['qr_token'] as String,
-                                ).encoded,
-                            size: 210,
-                            backgroundColor: Colors.white,
-                          ),
-                        )
-                      else
-                        const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Text('Vé đã kết thúc, QR không còn hiệu lực.'),
+                      Text(
+                        b['plate'] as String,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        active
+                            ? 'Nhân viên đối chiếu biển số khi xe vào và ra.'
+                            : 'Vé đã kết thúc.',
+                      ),
                       SelectableText(
                         b['id'] as String,
                         style: const TextStyle(fontSize: 12),
@@ -114,9 +101,11 @@ class TicketScreen extends StatelessWidget {
                         'Trạng thái',
                         statusLabel(b['status'] as String),
                       ),
-                      if (b['status'] == 'completed')
+                      if (b['prepaid'] == true || b['status'] == 'completed')
                         DetailRow(
-                          'Đã thu',
+                          b['prepaid'] == true
+                              ? 'Đã thanh toán trước'
+                              : 'Đã thu',
                           money(b['amount'] as int),
                           last: true,
                         ),
@@ -153,7 +142,12 @@ class TicketScreen extends StatelessWidget {
                     child: AsyncParkButton(
                       'Hủy đặt chỗ',
                       action: () async {
-                        if (await confirmAction(context, 'Hủy đặt chỗ này?')) {
+                        if (await confirmAction(
+                          context,
+                          b['prepaid'] == true
+                              ? 'Hủy đặt chỗ này? Tiền vé sẽ được hoàn vào số dư gửi xe, không chuyển về tài khoản ngân hàng.'
+                              : 'Hủy đặt chỗ này?',
+                        )) {
                           await repository.cancelBooking(b);
                         }
                       },

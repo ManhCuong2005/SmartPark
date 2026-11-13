@@ -14,7 +14,7 @@ class SupabaseSimulator {
   int? availabilityFailureStatus;
   String availabilityFailureCode = 'PGRST202';
   Map<String, dynamic> availabilityResponse = {
-    'slots': [],
+    'capacities': [],
     'vehicle_conflict': null,
   };
   Map<String, dynamic>? lastAvailabilityParameters;
@@ -91,7 +91,7 @@ class SupabaseSimulator {
         response = {
           'profiles': [],
           'lots': [],
-          'slots': [],
+          'capacities': [],
           'bookings': [],
           'vehicles': [],
           'memberships': [],

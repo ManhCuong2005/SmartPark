@@ -10,7 +10,6 @@ void main() {
       final state = ParkController(backend, monitorConnectivity: false);
       addTearDown(state.dispose);
       await state.initialize();
-      state.slot = 'A001';
       await expectLater(state.book(), throwsA(isA<ParkFailure>()));
       expect(state.selectedBookingId, isNull);
       expect(backend.queued, isEmpty);
@@ -23,12 +22,7 @@ void main() {
           state = ParkController(backend, monitorConnectivity: false);
       addTearDown(state.dispose);
       await state.initialize();
-      await state.openTicket(
-        TicketIdentity(
-          '60000000-0000-0000-0000-000000000001',
-          'a' * 64,
-        ).encoded,
-      );
+      state.selectedBookingId = state.bookings.single['id'] as String;
       await expectLater(
         state.staffAction(true, '43A99999'),
         throwsA(isA<ParkFailure>()),

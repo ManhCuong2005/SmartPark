@@ -108,7 +108,7 @@ class SupabaseParkingRepository implements ParkingRepository {
     } on PostgrestException catch (e) {
       if (e.code == 'PGRST202') {
         throw const ParkFailure(
-          'Máy chủ chưa cập nhật kiểm tra lịch xe. Cần áp dụng migration 006 trên Supabase.',
+          'Máy chủ chưa cập nhật kiểm tra lịch xe. Cần áp dụng migration 009–010 trên Supabase.',
           code: 'BOOKING_SCHEMA_REQUIRED',
         );
       }
@@ -248,7 +248,8 @@ class SupabaseParkingRepository implements ParkingRepository {
     _channel = client.channel('parking:${userId!}');
     for (final table in [
       'parking_lots',
-      'parking_slots',
+      'parking_reports',
+      'report_events',
       'lot_staff',
       'vehicles',
       'bookings',

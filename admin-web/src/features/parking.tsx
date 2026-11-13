@@ -24,8 +24,8 @@ export function OverviewPage() {
 
   const enabledLots = data.lots.filter((l) => l.enabled);
   const used = data.lots.reduce((n, l) => n + l.occupied, 0);
-  const capacity = data.slots.filter((s) => s.enabled).length;
-  const available = data.slots.filter((s) => s.enabled && !s.occupied).length;
+  const capacity = data.lots.reduce((n, l) => n + l.enabledCapacity, 0);
+  const available = data.lots.reduce((n, l) => n + l.availableSlots, 0);
   const pendingCheckin = data.bookings.filter(
     (b) => b.status === "Đã xác nhận",
   ).length;
@@ -108,7 +108,10 @@ export function OverviewPage() {
           <div className="panel-head-inline">
             <div>
               <h2>Lượt xe vào · 7 ngày</h2>
-              <p className="panel-sub">Tính đến {date.slice(8, 10)}/{date.slice(5, 7)}/{date.slice(0, 4)}</p>
+              <p className="panel-sub">
+                Tính đến {date.slice(8, 10)}/{date.slice(5, 7)}/
+                {date.slice(0, 4)}
+              </p>
             </div>
             <Badge tone="blue">{weekTotal} lượt xe</Badge>
           </div>
@@ -146,7 +149,9 @@ export function OverviewPage() {
         <div className="panel-heading">
           <div>
             <h2>Đặt chỗ gần đây</h2>
-            <p className="panel-sub">Đồng bộ thời gian thực từ ứng dụng Khách hàng & Nhân viên</p>
+            <p className="panel-sub">
+              Đồng bộ thời gian thực từ ứng dụng Khách hàng & Nhân viên
+            </p>
           </div>
           <Link to="/bookings">Xem tất cả →</Link>
         </div>
@@ -177,7 +182,9 @@ export function OverviewPage() {
                   <td>
                     <span className="plate">{b.plate}</span>
                   </td>
-                  <td>{data.lots.find((l) => l.id === b.lotId)?.name ?? "—"}</td>
+                  <td>
+                    {data.lots.find((l) => l.id === b.lotId)?.name ?? "—"}
+                  </td>
                   <td>
                     {b.start} – {b.end}
                   </td>
@@ -233,20 +240,20 @@ export function ParkingPage() {
     : (data.lots[0]?.id ?? "");
 
   const enabledLots = data.lots.filter((l) => l.enabled).length;
-  const enabledSlots = data.slots.filter((s) => s.enabled).length;
+  const enabledSlots = data.lots.reduce((n, l) => n + l.enabledCapacity, 0);
   const totalUsed = data.bookings.filter(
     (b) => b.status === "Đang sử dụng",
   ).length;
-  const occPct = enabledSlots ? Math.round((totalUsed / enabledSlots) * 100) : 0;
+  const occPct = enabledSlots
+    ? Math.round((totalUsed / enabledSlots) * 100)
+    : 0;
 
   return (
     <>
       <PageHeading
         title="Quản lý bãi đỗ"
-        subtitle="Quản lý danh sách bãi, giá niêm yết, sức chứa và trạng thái từng ô đỗ xe."
-        action={
-          <Button onClick={() => setEditor(null)}>+ Thêm bãi đỗ</Button>
-        }
+        subtitle="Quản lý danh sách bãi, giá niêm yết, sức chứa theo loại xe."
+        action={<Button onClick={() => setEditor(null)}>+ Thêm bãi đỗ</Button>}
       />
 
       <div className="metrics three">
@@ -259,7 +266,7 @@ export function ParkingPage() {
         />
         <Metric
           label="Tổng vị trí"
-          value={data.slots.length}
+          value={data.lots.reduce((n, l) => n + l.capacity, 0)}
           detail={`${enabledSlots} vị trí đang khả dụng`}
           icon="IconMapPin"
           tone="purple"
@@ -394,7 +401,20 @@ export function ParkingPage() {
         )}
       </Panel>
 
-      <SlotManager lotId={current} onLotChange={setSelected} />
+      <Panel>
+        <h2>Sức chứa theo loại xe</h2>
+        {data.lots
+          .filter((l) => !current || l.id === current)
+          .map((l) => (
+            <div key={l.id}>
+              <h3>{l.name}</h3>
+              <p>
+                Ô tô: còn {l.carRemaining}/{l.carCapacity} · Xe máy: còn{" "}
+                {l.motorcycleRemaining}/{l.motorcycleCapacity}
+              </p>
+            </div>
+          ))}
+      </Panel>
 
       {editor !== undefined && (
         <LotEditor lot={editor} onClose={() => setEditor(undefined)} />
@@ -407,7 +427,10 @@ function LotEditor({ lot, onClose }: { lot: Lot | null; onClose: () => void }) {
   const { command, notice } = useAdmin();
   const [name, setName] = useState(lot?.name ?? "");
   const [area, setArea] = useState(lot?.area ?? "");
-  const [capacity, setCapacity] = useState(lot?.capacity ?? 16);
+  const [carCapacity, setCarCapacity] = useState(lot?.carCapacity ?? 16);
+  const [motorcycleCapacity, setMotorcycleCapacity] = useState(
+    lot?.motorcycleCapacity ?? 16,
+  );
   const [enabled, setEnabled] = useState(lot?.enabled ?? true);
   const [lat, setLat] = useState(lot?.latitude?.toString() ?? "");
   const [lng, setLng] = useState(lot?.longitude?.toString() ?? "");
@@ -439,7 +462,8 @@ function LotEditor({ lot, onClose }: { lot: Lot | null; onClose: () => void }) {
             p_name: name.trim(),
             p_area: area.trim(),
             p_enabled: enabled,
-            p_capacity: capacity,
+            p_car_capacity: carCapacity,
+            p_motorcycle_capacity: motorcycleCapacity,
             p_latitude: lat === "" ? null : Number(lat),
             p_longitude: lng === "" ? null : Number(lng),
             p_expected_version: lot?.version ?? 0,
@@ -472,21 +496,35 @@ function LotEditor({ lot, onClose }: { lot: Lot | null; onClose: () => void }) {
             required
           />
         </label>
-        <label>
-          Số vị trí
-          <input
-            aria-label="Số vị trí"
-            type="number"
-            min={lot?.capacity ?? 1}
-            max={500}
-            value={capacity}
-            onChange={(e) => setCapacity(Number(e.target.value))}
-            required
-          />
-        </label>
+        <div className="form-row-2">
+          <label>
+            Sức chứa ô tô
+            <input
+              aria-label="Sức chứa ô tô"
+              type="number"
+              min={0}
+              max={100000}
+              value={carCapacity}
+              onChange={(e) => setCarCapacity(Number(e.target.value))}
+              required
+            />
+          </label>
+          <label>
+            Sức chứa xe máy
+            <input
+              aria-label="Sức chứa xe máy"
+              type="number"
+              min={0}
+              max={100000}
+              value={motorcycleCapacity}
+              onChange={(e) => setMotorcycleCapacity(Number(e.target.value))}
+              required
+            />
+          </label>
+        </div>
         <p className="form-hint">
-          Các ô đỗ tạo tự động theo mã A001, A002… Nếu muốn giảm sức chứa khả
-          dụng, hãy tạm ngưng từng vị trí trống ở sơ đồ bên dưới.
+          Máy chủ từ chối giảm dưới số vé cùng chiếm chỗ, bao gồm xe đã vào
+          nhưng chưa ra.
         </p>
         <div className="form-row-2">
           <label>
@@ -526,105 +564,5 @@ function LotEditor({ lot, onClose }: { lot: Lot | null; onClose: () => void }) {
         </label>
       </form>
     </Dialog>
-  );
-}
-
-function SlotManager({
-  lotId,
-  onLotChange,
-}: {
-  lotId: string;
-  onLotChange: (id: string) => void;
-}) {
-  const { data, command } = useAdmin();
-  const [busy, setBusy] = useState(false);
-
-  const lotSlots = data.slots.filter((s) => s.lotId === lotId);
-  const openCount = lotSlots.filter((s) => s.enabled && !s.occupied).length;
-  const occupiedCount = lotSlots.filter((s) => s.occupied).length;
-  const disabledCount = lotSlots.filter((s) => !s.enabled).length;
-
-  return (
-    <Panel className="slot-panel">
-      <div className="table-heading">
-        <div>
-          <h2>Quản lý vị trí đỗ</h2>
-          <p className="panel-sub">
-            Nhấn trực tiếp vào ô trống để mở hoặc tạm ngưng bảo trì
-          </p>
-        </div>
-        <div className="slot-toolbar">
-          <select
-            aria-label="Bãi quản lý vị trí"
-            value={lotId}
-            onChange={(e) => onLotChange(e.target.value)}
-          >
-            {data.lots.map((l) => (
-              <option value={l.id} key={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="slot-summary-bar">
-        <span className="slot-stat open">
-          <i /> Trống / sẵn sàng: <strong>{openCount}</strong>
-        </span>
-        <span className="slot-stat busy">
-          <i /> Đã giữ / đang dùng: <strong>{occupiedCount}</strong>
-        </span>
-        <span className="slot-stat off">
-          <i /> Đang tạm ngưng: <strong>{disabledCount}</strong>
-        </span>
-      </div>
-
-      {lotSlots.length ? (
-        <div className="slot-grid">
-          {lotSlots.map((s) => (
-            <button
-              type="button"
-              key={s.id}
-              disabled={busy || s.occupied}
-              className={
-                "slot-cell " +
-                (!s.enabled ? "disabled" : s.occupied ? "occupied" : "open")
-              }
-              onClick={async () => {
-                setBusy(true);
-                await command("manage_slot", {
-                  p_id: s.id,
-                  p_enabled: !s.enabled,
-                });
-                setBusy(false);
-              }}
-            >
-              <div className="slot-cell-head">
-                <strong>{s.code}</strong>
-                <span className="slot-dot" />
-              </div>
-              <small>
-                {s.occupied
-                  ? "Đã giữ / đang dùng"
-                  : s.enabled
-                    ? "Đang mở · bấm ngưng"
-                    : "Tạm ngưng · bấm mở"}
-              </small>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <Empty
-          message="Bãi này chưa có vị trí đỗ."
-          hint="Chọn bãi khác hoặc chỉnh sửa sức chứa của bãi."
-        />
-      )}
-
-      <p className="slot-footnote">
-        Máy chủ bảo vệ tự động: từ chối tạm ngưng các vị trí đang có xe đỗ hoặc
-        vé đã đặt trước chưa kết thúc.
-      </p>
-    </Panel>
   );
 }

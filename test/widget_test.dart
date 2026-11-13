@@ -82,19 +82,21 @@ void main() {
       '/home',
       '/parking/list',
       '/parking/detail',
-      '/booking/slots',
+      '/booking/capacity',
+      '/booking/vehicle-type',
       '/booking/time',
       '/booking/confirm',
       '/booking/payment',
-      '/tickets/qr',
+      '/tickets/detail',
       '/tickets',
+      '/reports',
       '/vehicles',
       '/profile',
       '/profile/edit',
       '/notifications',
       '/sync',
       '/staff/home',
-      '/staff/slots',
+      '/staff/capacity',
       '/staff/account',
     ]) {
       testWidgets('$route responds without overflow at $width', (tester) async {
@@ -111,7 +113,7 @@ void main() {
   testWidgets('dark mode retains readable ticket and form screens', (
     tester,
   ) async {
-    await mount(tester, '/tickets/qr', brightness: Brightness.dark);
+    await mount(tester, '/tickets/detail', brightness: Brightness.dark);
     expect(
       Theme.of(tester.element(find.byType(Scaffold).first)).brightness,
       Brightness.dark,

@@ -26,8 +26,8 @@ void main() {
       final from = DateTime.utc(2026, 11, 12, 4, 48),
           until = DateTime.utc(2026, 11, 12, 6, 48);
       env.server.availabilityResponse = {
-        'slots': [
-          {'id': 'slot', 'code': 'A011', 'enabled': true, 'occupied': false},
+        'capacities': [
+          {'kind': 'car', 'capacity': 1, 'remaining': 1},
         ],
         'vehicle_conflict': {
           'id': 'own-ticket',
@@ -50,7 +50,7 @@ void main() {
         'p_end': until.toIso8601String(),
         'p_vehicle_id': 'selected-vehicle',
       });
-      expect(result.slots.single['occupied'], false);
+      expect(result.capacities.single['remaining'], 1);
       expect(result.vehicleConflict!['id'], 'own-ticket');
       env.server.failureStatus = 409;
       env.server.failureCode = '23P01';

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../domain/parking_rules.dart';
 import '../../../shared/widgets/park_widgets.dart';
 import '../../park_controller.dart';
+import '../booking/payment_screen.dart';
 
 class BookingExtensionSheet extends StatefulWidget {
   const BookingExtensionSheet({
@@ -31,12 +32,16 @@ class _BookingExtensionSheetState extends State<BookingExtensionSheet> {
   @override
   Widget build(BuildContext context) {
     final until = base.add(Duration(hours: hours));
-    final expected = calculateFee(
-      DateTime.parse(widget.booking['checked_in_at'] as String),
-      until,
-      widget.booking['hourly_rate'] as int,
-      0,
-    );
+    final prepaid = widget.booking['prepaid'] == true;
+    final expected =
+        prepaid
+            ? extensionFee(widget.booking, until)
+            : calculateFee(
+              DateTime.parse(widget.booking['checked_in_at'] as String),
+              until,
+              widget.booking['hourly_rate'] as int,
+              0,
+            );
     return SafeArea(
       child: SingleChildScrollView(
         child: Padding(
@@ -51,8 +56,10 @@ class _BookingExtensionSheetState extends State<BookingExtensionSheet> {
                 weight: FontWeight.w700,
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Máy chủ sẽ kiểm tra lịch ô đỗ và phương tiện trước khi đồng ý. Gia hạn không thu tiền trước; phí thực tế tính khi xe ra.',
+              Text(
+                prepaid
+                    ? 'Thanh toán phần thời gian tăng thêm bằng QR hoặc số dư. Máy chủ kiểm tra sức chứa trước khi cập nhật giờ ra.'
+                    : 'Vé cũ vẫn tính phí khi xe ra. Máy chủ sẽ kiểm tra lịch bãi và phương tiện trước khi đồng ý gia hạn.',
               ),
               const SizedBox(height: 16),
               Wrap(
@@ -73,14 +80,33 @@ class _BookingExtensionSheetState extends State<BookingExtensionSheet> {
                 'Giờ ra mới',
                 '${displayDate(until)} ${clock(TimeOfDay.fromDateTime(until))}',
               ),
-              DetailRow('Phí dự kiến đến giờ mới', money(expected)),
+              DetailRow(
+                prepaid ? 'Thanh toán thêm' : 'Phí dự kiến đến giờ mới',
+                money(expected),
+              ),
               const SizedBox(height: 16),
               AsyncParkButton(
-                'Xác nhận gia hạn',
+                prepaid ? 'Thanh toán gia hạn' : 'Xác nhận gia hạn',
                 enabled: !submitting,
                 action: () async {
                   setState(() => submitting = true);
                   try {
+                    if (prepaid) {
+                      final paid = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => PaymentScreen(
+                                repository: widget.repository,
+                                booking: widget.booking,
+                                newEnd: until,
+                              ),
+                        ),
+                      );
+                      if (paid == true && context.mounted)
+                        Navigator.pop(context, true);
+                      return;
+                    }
                     await widget.repository.extendBooking(
                       widget.booking,
                       until,
@@ -89,7 +115,7 @@ class _BookingExtensionSheetState extends State<BookingExtensionSheet> {
                     if (mounted) setState(() => submitting = false);
                   }
                 },
-                onSuccess: () => Navigator.pop(context, true),
+                onSuccess: prepaid ? null : () => Navigator.pop(context, true),
               ),
               Center(
                 child: TextButton(

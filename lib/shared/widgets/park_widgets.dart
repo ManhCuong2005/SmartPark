@@ -299,7 +299,7 @@ class ParkBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final labels =
         staff
-            ? ['Trang chủ', 'Quét QR', 'Sơ đồ', 'Tài khoản']
+            ? ['Trang chủ', 'Biển số', 'Sức chứa', 'Tài khoản']
             : ['Trang chủ', 'Tìm bãi', 'Vé xe', 'Cá nhân'];
     final icons =
         staff
@@ -307,7 +307,12 @@ class ParkBottomNav extends StatelessWidget {
             : ['IconHome', 'IconMap', 'IconTicket', 'IconUser'];
     final routes =
         staff
-            ? ['/staff/home', '/staff/scan', '/staff/slots', '/staff/account']
+            ? [
+              '/staff/home',
+              '/staff/scan',
+              '/staff/capacity',
+              '/staff/account',
+            ]
             : ['/home', '/parking/map', '/tickets', '/profile'];
     final navScreen =
         staff

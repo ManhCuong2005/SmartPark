@@ -26,16 +26,23 @@ try{
  }
  const migrations=readdirSync(join(root,'supabase','migrations')).filter(f=>f.endsWith('.sql')).sort().map(f=>'supabase/migrations/'+f);
  const expiryPolicy='supabase/migrations/202611120008_expiry_and_extensions.sql';
+ const prepaidPolicy='supabase/migrations/202611120012_prepaid_bookings.sql';
  // Verify the historical grace-period behavior before the policy change, then
  // verify deletion and extensions against the final schema. Never rewrite old migrations.
- for(const file of ['supabase/tests/bootstrap.sql',...migrations.filter(f=>f<expiryPolicy),'supabase/tests/behavior.sql','supabase/tests/staff_permissions.sql','supabase/tests/deadlines_and_push.sql','supabase/tests/reminder_flow.sql','supabase/tests/booking_flow.sql','supabase/tests/booking_availability.sql','supabase/tests/paid_checkout.sql',...migrations.filter(f=>f>=expiryPolicy),'supabase/tests/expiry_and_extensions.sql']){
+ for(const file of ['supabase/tests/bootstrap.sql',...migrations.filter(f=>f<expiryPolicy),'supabase/tests/behavior.sql','supabase/tests/staff_permissions.sql','supabase/tests/deadlines_and_push.sql','supabase/tests/reminder_flow.sql','supabase/tests/booking_flow.sql','supabase/tests/booking_availability.sql','supabase/tests/paid_checkout.sql',expiryPolicy,'supabase/tests/expiry_and_extensions.sql',...migrations.filter(f=>f>expiryPolicy&&f<prepaidPolicy),'supabase/tests/capacity_and_plates.sql']){
+  const ticketFingerprint=()=>run(binary('psql'),[url,'-X','-At','-v','ON_ERROR_STOP=1','-c',"select md5(coalesce((select string_agg((to_jsonb(b)-'vehicle_kind')::text,'' order by b.id) from public.bookings b),'')||coalesce((select string_agg(to_jsonb(p)::text,'' order by p.id) from public.payments p),''));"]).trim();
+  const before=file.includes('009_capacity')?ticketFingerprint():null;
   run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-f',join(root,file)]);console.log(`PASS ${file}`);
+  if(before!==null && before!==ticketFingerprint())throw new Error('Capacity upgrade changed legacy ticket or payment data');
+  if(before!==null)console.log('PASS migration preserves every legacy ticket and payment field');
  }
+ run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-f',join(root,'supabase/tests/parking_reports.sql')]);console.log('PASS reports, plate permissions, reminders, extension, no-show expiry');
+ run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-f',join(root,'supabase/tests/payos_topups.sql')]);console.log('PASS payOS wallet settlement, replay, and customer isolation');
  const reservation=n=>`begin; set local role authenticated;
-  select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
+  select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-00000000000${n}',true);
   select public.apply_operation('70000000-0000-0000-0000-${String(n).padStart(12,'0')}','booking.create',jsonb_build_object(
-   'id','80000000-0000-0000-0000-${String(n).padStart(12,'0')}','vehicle_id','50000000-0000-0000-0000-000000000001',
-   'slot_id','30000000-0000-0000-0000-000000000002','starts_at',date_trunc('hour',now())+interval '1 day',
+   'id','80000000-0000-0000-0000-${String(n).padStart(12,'0')}','vehicle_id','51000000-0000-0000-0000-00000000000${n}',
+   'lot_id','20000000-0000-0000-0000-000000000001','starts_at',date_trunc('hour',now())+interval '1 day',
    'ends_at',date_trunc('hour',now())+interval '25 hours'));
   select pg_sleep(0.5); commit;`;
  const race=n=>new Promise((resolve,reject)=>{
@@ -44,7 +51,7 @@ try{
   child.on('error',reject);child.on('close',code=>resolve({code,output}));
  });
  const outcomes=await Promise.all([race(1),race(2)]);
- if(outcomes.filter(o=>o.code===0).length!==1||!outcomes.some(o=>/exclusion constraint|VEHICLE_TIME_CONFLICT|SLOT_TIME_CONFLICT/.test(o.output)))throw new Error(JSON.stringify(outcomes));
+ if(outcomes.filter(o=>o.code===0).length!==1||!outcomes.some(o=>/CAPACITY_FULL/.test(o.output)))throw new Error(JSON.stringify(outcomes));
  console.log('PASS concurrent sessions: exactly one overlapping reservation accepted');
  if(args.includes('--demo-seed')){
   run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-c',`
@@ -77,8 +84,13 @@ try{
    const before=fingerprint();
    run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-f',seedFile]);
    if(before!==fingerprint())throw new Error('Demo seed rerun overwrote operational data');
-   console.log(`PASS demo seed (${single?'single owner':'three accounts'}): counts, fees, RLS, QR workflow and non-destructive rerun`);
+   console.log(`PASS demo seed (${single?'single owner':'three accounts'}): counts, fees, RLS, plate workflow and non-destructive rerun`);
   }
+ }
+ // Cash-era fixtures above verify the old contract before switching new bookings
+ // to mandatory prepayment. No old fixture is silently granted free admission.
+ for(const file of [...migrations.filter(f=>f>=prepaidPolicy),'supabase/tests/prepaid_bookings.sql']){
+  run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-f',join(root,file)]);console.log(`PASS ${file}`);
  }
 }finally{
  if(started){run(binary('pg_ctl'),['-D',cluster,'-m','immediate','-w','stop']);console.log('Stopped disposable test server. App backend remains Supabase Cloud.');}

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:smartpark/app/providers.dart';
 import 'package:smartpark/app/smartpark_app.dart';
@@ -18,7 +17,7 @@ const allow = bool.fromEnvironment('SMARTPARK_TEST_ALLOW_WRITES');
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets(
-    'Cloud: customer reservation → real QR → staff check-in/out → owner receipts',
+    'Cloud: customer reservation → plate ticket → staff check-in/out → owner receipts',
     (tester) async {
       final dir = await Directory.systemTemp.createTemp('smartpark-e2e-');
       final customerClient = SupabaseClient(
@@ -60,30 +59,21 @@ void main() {
           (l) => l.id == const String.fromEnvironment('TEST_LOT_ID'),
         );
         await customer.loadAvailability();
-        customer.slot = const String.fromEnvironment(
-          'TEST_SLOT_CODE',
-          defaultValue: 'A001',
-        );
         expect(
           customer.vehicle.id,
           isNotEmpty,
           reason: 'Create a test customer vehicle first',
         );
         await customer.book();
-        final ticket = customer.ticket!,
-            qr =
-                TicketIdentity(
-                  ticket['id'] as String,
-                  ticket['qr_token'] as String,
-                ).encoded;
+        final ticket = customer.ticket!;
         await tester.pumpWidget(
           ProviderScope(
             overrides: [parkControllerProvider.overrideWith((ref) => customer)],
-            child: const SmartParkApp(initialRoute: '/tickets/qr'),
+            child: const SmartParkApp(initialRoute: '/tickets/detail'),
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.byType(QrImageView), findsOneWidget);
+        expect(find.text(ticket['plate'] as String), findsOneWidget);
         expect(
           await staff.authenticate(
             const String.fromEnvironment('TEST_STAFF_EMAIL'),
@@ -93,7 +83,8 @@ void main() {
           isTrue,
         );
         await staff.initialize();
-        await staff.openTicket(qr);
+        staff.lot = staff.lots.firstWhere((l) => l.id == ticket['lot_id']);
+        await staff.openPlate(ticket['plate'] as String);
         await staff.staffAction(true, ticket['plate'] as String);
         expect(staff.ticket!['status'], 'parked');
         expect(staff.operations, isEmpty);

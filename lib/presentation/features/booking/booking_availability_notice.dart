@@ -29,19 +29,6 @@ class BookingAvailabilityNotice extends StatelessWidget {
             Wrap(
               spacing: 8,
               children: [
-                TextButton(
-                  onPressed: () async {
-                    await repository.refresh();
-                    if (!context.mounted) return;
-                    repository.update(
-                      () =>
-                          repository.selectedBookingId =
-                              conflict['id'] as String,
-                    );
-                    Navigator.pushNamed(context, '/tickets/qr');
-                  },
-                  child: const Text('Xem vé đang trùng'),
-                ),
                 if (ModalRoute.of(context)?.settings.name != '/booking/time')
                   TextButton(
                     onPressed:
@@ -75,14 +62,11 @@ Future<void> bookingStep(
     if (context.mounted &&
         [
           'VEHICLE_TIME_CONFLICT',
-          'SLOT_TIME_CONFLICT',
+          'CAPACITY_FULL',
           'SLOT_UNAVAILABLE',
           '23P01',
         ].contains(error.code)) {
-      final target =
-          error.code == 'VEHICLE_TIME_CONFLICT'
-              ? '/booking/time'
-              : '/booking/slots';
+      const target = '/booking/time';
       Navigator.popUntil(
         context,
         (route) => route.settings.name == target || route.isFirst,

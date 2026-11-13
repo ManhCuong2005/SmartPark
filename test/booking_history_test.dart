@@ -5,7 +5,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:smartpark/app/providers.dart';
 import 'package:smartpark/app/smartpark_app.dart';
 import 'package:smartpark/presentation/features/tickets/booking_history_data.dart';
@@ -267,13 +266,13 @@ void main() {
     },
   );
 
-  testWidgets('tap current ticket opens its actual QR detail', (tester) async {
+  testWidgets('tap current ticket opens its plate detail', (tester) async {
     final state = await mountHistory(tester);
     await tester.tap(find.byKey(const ValueKey('history-active-active')));
     await tester.pumpAndSettle();
     expect(state.selectedBookingId, 'active');
     expect(find.text('Vé điện tử SmartPark'), findsOneWidget);
-    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.textContaining('Nhân viên đối chiếu biển số'), findsOneWidget);
   });
 
   testWidgets('long archive builds visible cards lazily', (tester) async {

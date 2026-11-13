@@ -5,9 +5,11 @@ import 'providers.dart';
 import '../shared/widgets/park_widgets.dart';
 import '../presentation/features/auth/auth_screens.dart';
 import '../presentation/features/parking/parking_screens.dart';
+import '../presentation/features/parking/parking_reports_screen.dart';
 import '../presentation/features/booking/booking_screens.dart';
 import '../presentation/features/tickets/ticket_screens.dart';
 import '../presentation/features/account/account_screens.dart';
+import '../presentation/features/account/wallet_screen.dart';
 import '../presentation/features/staff/staff_screens.dart';
 
 class SmartParkApp extends ConsumerWidget {
@@ -24,7 +26,7 @@ class SmartParkApp extends ConsumerWidget {
         if (repository.notificationToOpen != notification) return;
         repository.notificationToOpen = null;
         if (repository.signedIn) {
-          navigatorKey.currentState?.pushNamed('/tickets/qr');
+          navigatorKey.currentState?.pushNamed('/tickets/detail');
         }
       });
     }
@@ -145,22 +147,26 @@ class SmartParkApp extends ConsumerWidget {
             (_) => guard(ParkingListScreen(repository: repository)),
         '/parking/detail':
             (_) => guard(ParkingDetailScreen(repository: repository)),
-        '/booking/slots':
-            (_) => guard(SlotSelectionScreen(repository: repository)),
+        '/booking/capacity':
+            (_) => guard(CapacitySelectionScreen(repository: repository)),
+        '/booking/vehicle-type':
+            (_) => guard(VehicleTypeSelectionScreen(repository: repository)),
         '/booking/time':
             (_) => guard(TimeSelectionScreen(repository: repository)),
         '/booking/confirm':
             (_) => guard(BookingConfirmationScreen(repository: repository)),
         '/booking/payment': (_) => guard(PaymentScreen(repository: repository)),
-        '/tickets/qr': (_) => guard(TicketScreen(repository: repository)),
+        '/tickets/detail': (_) => guard(TicketScreen(repository: repository)),
         '/tickets': (_) => guard(TicketHistoryScreen(repository: repository)),
         '/vehicles': (_) => guard(VehiclesScreen(repository: repository)),
         '/profile': (_) => guard(ProfileScreen(repository: repository)),
+        if (!staff) '/wallet': (_) => guard(const WalletScreen()),
         '/notifications':
             (_) => guard(NotificationsScreen(repository: repository)),
         '/profile/edit':
             (_) => guard(ProfileEditScreen(repository: repository)),
         '/help': (_) => const HelpScreen(),
+        '/reports': (_) => guard(ParkingReportsScreen(repository: repository)),
         '/sync': (_) => guard(SyncQueueScreen(repository: repository)),
         '/staff/home':
             (_) =>
@@ -175,9 +181,9 @@ class SmartParkApp extends ConsumerWidget {
               StaffConfirmationScreen(repository: repository),
               staffOnly: true,
             ),
-        '/staff/slots':
+        '/staff/capacity':
             (_) => guard(
-              StaffSlotsScreen(repository: repository),
+              StaffCapacityScreen(repository: repository),
               staffOnly: true,
             ),
         '/staff/account':

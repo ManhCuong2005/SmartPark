@@ -443,7 +443,16 @@ class _ParkingDetailScreenState extends State<ParkingDetailScreen> {
       bottom: BottomAction(
         child: ParkButton(
           'Đặt chỗ đỗ xe',
-          onPressed: () => Navigator.pushNamed(context, '/booking/time'),
+          onPressed: () {
+            final repository = widget.repository;
+            final kinds = repository.bookingVehicleKinds;
+            if (kinds.length == 1) {
+              repository.selectBookingVehicleKind(kinds.single);
+              Navigator.pushNamed(context, '/booking/time');
+            } else {
+              Navigator.pushNamed(context, '/booking/vehicle-type');
+            }
+          },
         ),
       ),
       child: Column(
@@ -544,7 +553,7 @@ class _ParkingDetailScreenState extends State<ParkingDetailScreen> {
                         Expanded(
                           child: Txt(
                             [
-                              'Đặt trước và xuất trình vé QR',
+                              'Đặt trước và xác nhận biển số',
                               'Thanh toán tiền mặt khi xe ra',
                               'Ô tô: ${money(lot.hourlyRate)}/h · Xe máy: ${money(lot.motorcycleRate)}/h',
                             ][i],

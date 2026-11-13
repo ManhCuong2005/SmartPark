@@ -1,13 +1,11 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../app/providers.dart';
 import '../../../domain/parking_rules.dart';
 import '../../park_controller.dart';
 import '../../../shared/widgets/park_widgets.dart';
-import '../booking/booking_screens.dart';
+import '../../../shared/widgets/plate_input.dart';
 
 class StaffScannerScreen extends StatefulWidget {
   const StaffScannerScreen({super.key, required this.repository});
@@ -16,152 +14,88 @@ class StaffScannerScreen extends StatefulWidget {
   State<StaffScannerScreen> createState() => _StaffScannerScreenState();
 }
 
-class _StaffScannerScreenState extends State<StaffScannerScreen>
-    with WidgetsBindingObserver {
-  final scanner = MobileScannerController(formats: [BarcodeFormat.qrCode]);
+class _StaffScannerScreenState extends State<StaffScannerScreen> {
+  final plate = TextEditingController();
   bool processing = false;
-  bool get supported =>
-      kIsWeb ||
-      [
-        TargetPlatform.android,
-        TargetPlatform.iOS,
-        TargetPlatform.macOS,
-      ].contains(defaultTargetPlatform);
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!supported) return;
-    if (state == AppLifecycleState.resumed && !processing) {
-      scanner.start();
-    } else if (state == AppLifecycleState.inactive) {
-      scanner.stop();
-    }
-  }
-
+  int captureSession = 0;
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    scanner.dispose();
+    plate.dispose();
     super.dispose();
   }
 
   Future<void> open(String raw) async {
     if (processing) return;
     setState(() => processing = true);
-    if (supported) await scanner.stop();
-    if (!mounted) return;
-    final ok = await runAction(
-      context,
-      () => widget.repository.openTicket(raw),
-    );
+    final ok = await runAction(context, () => widget.repository.openPlate(raw));
     if (ok && mounted) {
       await HapticFeedback.mediumImpact();
       if (mounted) await Navigator.pushNamed(context, '/staff/confirm');
+      if (mounted) {
+        plate.clear();
+        captureSession++;
+      }
     }
-    if (!mounted) return;
-    setState(() => processing = false);
-    if (supported) await scanner.start();
-  }
-
-  Future<void> manual() async {
-    final text = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder:
-          (c) => AlertDialog(
-            title: const Text('Nhập nội dung QR'),
-            content: TextField(
-              controller: text,
-              decoration: const InputDecoration(labelText: 'smartpark:v1:…'),
-              maxLines: 3,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(c),
-                child: const Text('Hủy'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(c, text.text),
-                child: const Text('Kiểm tra vé'),
-              ),
-            ],
-          ),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    text.dispose();
-    if (result != null) await open(result);
+    if (mounted) setState(() => processing = false);
   }
 
   @override
-  Widget build(BuildContext context) => ParkPage(
-    color: ParkColors.navy,
-    child: Column(
-      children: [
-        const Padding(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            children: [
-              Txt(
-                'Quét mã QR',
-                size: 26,
-                color: Colors.white,
-                weight: FontWeight.w700,
-              ),
-              Txt('Đưa vé điện tử vào khung quét', color: Colors.white),
-            ],
+  Widget build(BuildContext context) {
+    final repo = widget.repository;
+    return ParkPage(
+      child: Column(
+        children: [
+          const PageHeading(
+            'Quét biển số',
+            subtitle: 'Xác nhận biển số để tìm vé vào / ra',
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: SizedBox(
-                  height: 330,
-                  child:
-                      supported
-                          ? MobileScanner(
-                            controller: scanner,
-                            onDetect: (capture) {
-                              final value =
-                                  capture.barcodes.firstOrNull?.rawValue;
-                              if (value != null) open(value);
-                            },
-                          )
-                          : const Center(
-                            child: Text(
-                              'Camera quét QR hỗ trợ Android/iOS và trình duyệt.',
-                              style: TextStyle(color: Colors.white),
-                            ),
+          Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              children: [
+                DropdownButton<String>(
+                  isExpanded: true,
+                  value:
+                      repo.staffLots.any((l) => l.id == repo.lot.id)
+                          ? repo.lot.id
+                          : null,
+                  hint: const Text('Chọn bãi được phân công'),
+                  items: [
+                    for (final lot in repo.staffLots)
+                      DropdownMenuItem(value: lot.id, child: Text(lot.name)),
+                  ],
+                  onChanged:
+                      processing
+                          ? null
+                          : (id) => repo.update(
+                            () =>
+                                repo.lot = repo.staffLots.firstWhere(
+                                  (l) => l.id == id,
+                                ),
                           ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              ParkButton(
-                'Nhập nội dung QR thủ công',
-                onPressed: processing ? null : manual,
-              ),
-              if (supported)
-                TextButton(
-                  onPressed: () => scanner.toggleTorch(),
-                  child: const Text('Bật / tắt đèn'),
+                const SizedBox(height: 20),
+                PlateInput(
+                  key: ValueKey(captureSession),
+                  controller: plate,
+                  capture: repo.recognizePlate,
                 ),
-              const Text(
-                'Offline chỉ xử lý vé đã có trong cache của nhân viên. Thao tác sẽ chờ máy chủ kiểm tra khi kết nối lại.',
-                style: TextStyle(color: Colors.white),
-              ),
-            ],
+                const SizedBox(height: 24),
+                ParkButton(
+                  processing ? 'Đang tìm vé…' : 'Xác nhận biển số và tìm vé',
+                  onPressed: processing ? null : () => open(plate.text),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Cần kết nối máy chủ để đối chiếu vé theo biển số và bãi. Chỉ cho xe vào sau khi máy chủ xác nhận.',
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class StaffConfirmationScreen extends StatefulWidget {
@@ -173,9 +107,9 @@ class StaffConfirmationScreen extends StatefulWidget {
 }
 
 class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
-  final plate = TextEditingController();
-  bool recognizing = false;
-  List<String> candidates = [];
+  late final plate = TextEditingController(
+    text: widget.repository.ticket?['plate'] as String? ?? '',
+  );
   void returnToScanner() {
     final navigator = Navigator.of(context);
     var scannerInStack = false;
@@ -192,32 +126,12 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
     super.dispose();
   }
 
-  Future<void> recognize() async {
-    setState(() => recognizing = true);
-    await runAction(context, () async {
-      final result = await widget.repository.recognizePlate();
-      if (result == null || !mounted) return;
-      if (result.isNotEmpty) await HapticFeedback.mediumImpact();
-      if (!mounted) return;
-      setState(() {
-        candidates = result;
-        if (result.length == 1) plate.text = result.first;
-      });
-      if (result.isEmpty && mounted) {
-        showMessage(
-          context,
-          'Chưa nhận diện được biển số. Chụp rõ hơn hoặc nhập thủ công.',
-        );
-      }
-    });
-    if (mounted) setState(() => recognizing = false);
-  }
-
   @override
   Widget build(BuildContext context) {
     final repo = widget.repository, b = repo.ticket;
     if (b == null) return const ParkPage(child: PageHeading('Chưa chọn vé'));
     final entering = b['status'] == 'confirmed';
+    final prepaid = b['prepaid'] == true;
     final scheduledEnd = DateTime.parse(b['ends_at'] as String).toLocal();
     final arrival = DateTime.now();
     final late = entering && !arrival.isBefore(scheduledEnd);
@@ -225,20 +139,13 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
       (o) => o.payload['booking_id'] == b['id'],
     );
     final preview =
-        b['checked_in_at'] == null
-            ? null
-            : calculateFee(
-              DateTime.parse(b['checked_in_at'] as String),
-              DateTime.now(),
-              b['hourly_rate'] as int,
-              b['free_minutes'] as int,
-            );
+        b['checked_in_at'] == null ? null : checkoutAmount(b, DateTime.now());
     return ParkPage(
       child: Column(
         children: [
           const PageHeading(
             'Xác nhận vé',
-            subtitle: 'Kiểm tra QR và biển số thực tế',
+            subtitle: 'Kiểm tra biển số thực tế và vé hợp lệ',
             screen: '27:144',
           ),
           Padding(
@@ -259,14 +166,28 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                           '${displayDate(noShowDeadline(scheduledEnd))} ${clock(TimeOfDay.fromDateTime(noShowDeadline(scheduledEnd)))}',
                         ),
                       if (preview != null && b['status'] == 'parked') ...[
-                        DetailRow('Số tiền cần thu', money(preview)),
+                        if (prepaid)
+                          DetailRow(
+                            'Đã thanh toán trước',
+                            money(b['amount'] as int),
+                          ),
+                        DetailRow(
+                          prepaid ? 'Cần thu tại cổng' : 'Số tiền cần thu',
+                          money(preview),
+                        ),
                         DetailRow(
                           'Đơn giá',
                           '${money(b['hourly_rate'] as int)}/giờ',
                         ),
-                        const Text(
-                          'Thu từ phút đầu, tối thiểu 1 giờ. Chỉ xác nhận xe ra sau khi đã thu tiền.',
+                        Text(
+                          prepaid
+                              ? 'Vé đã thanh toán trước. Không thu lại tiền vé khi xe ra.'
+                              : 'Thu từ phút đầu, tối thiểu 1 giờ. Chỉ xác nhận xe ra sau khi đã thu tiền.',
                         ),
+                        if (prepaid && DateTime.now().isAfter(scheduledEnd))
+                          const Text(
+                            'Xe đã quá giờ đăng ký. Nhắc khách gia hạn và thanh toán phần thời gian thêm. Quy tắc xử lý chưa gia hạn đang chờ cấu hình.',
+                          ),
                       ],
                       if (b['status'] == 'completed' &&
                           b['local_pending'] != true)
@@ -274,7 +195,9 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                       if (b['status'] == 'completed' &&
                           b['local_pending'] == true)
                         DetailRow(
-                          'Khoản thu chờ đồng bộ',
+                          prepaid
+                              ? 'Đã thanh toán trước'
+                              : 'Khoản thu chờ đồng bộ',
                           money(b['amount'] as int),
                         ),
                     ],
@@ -291,34 +214,7 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                ParkButton(
-                  recognizing ? 'Đang nhận diện…' : 'Chụp biển số · AI OCR',
-                  onPressed: recognizing ? null : recognize,
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  children:
-                      candidates
-                          .map(
-                            (p) => ActionChip(
-                              label: Text(p),
-                              onPressed: () => setState(() => plate.text = p),
-                            ),
-                          )
-                          .toList(),
-                ),
-                TextField(
-                  controller: plate,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    labelText: 'Biển số thực tế · có thể sửa',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'OCR có thể sai. Đối chiếu biển số và sửa kết quả trước khi xác nhận. Phí chính thức do máy chủ tính.',
-                ),
+                PlateInput(controller: plate, capture: repo.recognizePlate),
                 const SizedBox(height: 20),
                 if (pending)
                   const Text(
@@ -328,23 +224,20 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                   AsyncParkButton(
                     entering
                         ? 'Xác nhận xe vào'
+                        : prepaid
+                        ? 'Xác nhận xe ra'
                         : 'Xác nhận thu tiền mặt và xe ra',
                     enabled: !late,
                     action: () async {
                       final checkoutAt = DateTime.now().toUtc();
                       final due =
-                          entering
-                              ? null
-                              : calculateFee(
-                                DateTime.parse(b['checked_in_at'] as String),
-                                checkoutAt,
-                                b['hourly_rate'] as int,
-                                b['free_minutes'] as int,
-                              );
+                          entering ? null : checkoutAmount(b, checkoutAt);
                       if (!await confirmAction(
                         context,
                         entering
                             ? 'Xác nhận biển số thực tế và cho xe vào bãi?'
+                            : prepaid
+                            ? 'Xác nhận xe ${b['plate']} ra bãi? Vé đã thanh toán trước, không thu thêm tại cổng.'
                             : 'Xác nhận đã thu ${money(due!)} tiền mặt cho xe ${b['plate']} và cho xe ra?${repo.online ? '' : ' Đang ngoại tuyến: khoản thu sẽ chờ máy chủ xác nhận, chưa vào doanh thu.'}',
                       )) {
                         return;
@@ -363,9 +256,10 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
                               ? 'Thao tác đang chờ máy chủ xác nhận. Kiểm tra hàng đợi.'
                               : entering
                               ? 'Máy chủ đã xác nhận xe vào.'
+                              : prepaid
+                              ? 'Đã xác nhận xe ra. Vé đã thanh toán trước, không thu lại tiền.'
                               : 'Đã ghi nhận thu ${money(repo.ticket?['amount'] as int? ?? due!)} và xe ra. Khoản thu đã gửi vào doanh thu của bãi.',
                         );
-                        repo.update(() => repo.scannedQr = null);
                         returnToScanner();
                       }
                     },
@@ -383,120 +277,82 @@ class _StaffConfirmationScreenState extends State<StaffConfirmationScreen> {
   }
 }
 
-class StaffSlotsScreen extends StatelessWidget {
-  const StaffSlotsScreen({super.key, required this.repository});
+class StaffCapacityScreen extends StatelessWidget {
+  const StaffCapacityScreen({super.key, required this.repository});
   final ParkController repository;
   @override
-  Widget build(BuildContext context) {
-    final assigned =
-        repository.lots
-            .where(
-              (l) =>
-                  repository.snapshot
-                      .rows('memberships')
-                      .any(
-                        (m) =>
-                            m['lot_id'] == l.id &&
-                            m['user_id'] == repository.userId &&
-                            m['active'] == true,
-                      ) ||
-                  repository.snapshot
-                      .rows('lots')
-                      .any(
-                        (r) =>
-                            r['id'] == l.id &&
-                            r['owner_id'] == repository.userId,
-                      ),
-            )
-            .toList();
-    return ParkPage(
-      bottom: const ParkBottomNav(active: 2, staff: true),
-      child: Column(
-        children: [
-          const PageHeading(
-            'Sơ đồ vị trí',
-            subtitle: 'Tình trạng bãi và danh sách xe đang gửi',
-            screen: '27:191',
-          ),
-          Padding(
-            padding: const EdgeInsets.all(22),
-            child: Column(
-              children: [
-                DropdownButton<String>(
-                  isExpanded: true,
-                  value:
-                      assigned.any((l) => l.id == repository.lot.id)
-                          ? repository.lot.id
-                          : null,
-                  hint: const Text('Chọn bãi được phân công'),
-                  items:
-                      assigned
-                          .map(
-                            (l) => DropdownMenuItem(
-                              value: l.id,
-                              child: Text(l.name),
-                            ),
-                          )
-                          .toList(),
-                  onChanged:
-                      (id) => repository.update(
-                        () =>
-                            repository.lot = assigned.firstWhere(
-                              (l) => l.id == id,
-                            ),
-                      ),
-                ),
-                const SizedBox(height: 20),
-                if (assigned.any((l) => l.id == repository.lot.id))
-                  SlotGrid(
-                    selected: '',
-                    occupied: repository.occupied,
-                    codes:
-                        repository.slots
-                            .map((s) => s['code'] as String)
-                            .toList(),
-                    staff: true,
-                    onSelect: (_) {
-                      showMessage(
-                        context,
-                        'Thay đổi trạng thái bằng vé QR và check-in/check-out.',
-                      );
-                    },
-                  ),
-                const SizedBox(height: 20),
-                for (final b in repository.parked.where(
-                  (b) => b['lot_id'] == repository.lot.id,
-                ))
-                  ParkCard(
-                    child: ListTile(
-                      title: Text(b['plate'] as String),
-                      subtitle: Text(
-                        'Vào lúc ${DateTime.parse(b['checked_in_at'] as String).toLocal()}',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () async {
-                        if (await runAction(
-                              context,
-                              () => repository.openTicket(
-                                TicketIdentity(
-                                  b['id'] as String,
-                                  b['qr_token'] as String,
-                                ).encoded,
-                              ),
-                            ) &&
-                            context.mounted) {
-                          Navigator.pushNamed(context, '/staff/confirm');
-                        }
-                      },
+  Widget build(BuildContext context) => ParkPage(
+    bottom: const ParkBottomNav(active: 2, staff: true),
+    child: Column(
+      children: [
+        const PageHeading(
+          'Sức chứa bãi',
+          subtitle: 'Chỗ còn lại và xe đang gửi',
+        ),
+        Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            children: [
+              DropdownButton<String>(
+                isExpanded: true,
+                value:
+                    repository.staffLots.any((l) => l.id == repository.lot.id)
+                        ? repository.lot.id
+                        : null,
+                hint: const Text('Chọn bãi được phân công'),
+                items: [
+                  for (final l in repository.staffLots)
+                    DropdownMenuItem(value: l.id, child: Text(l.name)),
+                ],
+                onChanged:
+                    (id) => repository.update(
+                      () =>
+                          repository.lot = repository.staffLots.firstWhere(
+                            (l) => l.id == id,
+                          ),
+                    ),
+              ),
+              for (final c in repository.capacities)
+                ParkCard(
+                  child: ListTile(
+                    title: Text(c['kind'] == 'car' ? 'Ô tô' : 'Xe máy'),
+                    subtitle: Text(
+                      'Còn ${c['remaining']} / ${c['capacity']} chỗ hiện tại',
                     ),
                   ),
-              ],
-            ),
+                ),
+              const SizedBox(height: 20),
+              for (final b in repository.parked.where(
+                (b) => b['lot_id'] == repository.lot.id,
+              ))
+                ParkCard(
+                  child: ListTile(
+                    title: Text(b['plate'] as String),
+                    subtitle: Text(
+                      'Vào lúc ${DateTime.parse(b['checked_in_at'] as String).toLocal()}',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      if (await runAction(
+                            context,
+                            () => repository.openPlate(b['plate'] as String),
+                          ) &&
+                          context.mounted) {
+                        Navigator.pushNamed(context, '/staff/confirm');
+                      }
+                    },
+                  ),
+                ),
+              TextButton(
+                onPressed: () => Navigator.pushNamed(context, '/reports'),
+                child: const Text('Báo cáo được phân công'),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 }
 
 class StaffAccountScreen extends ConsumerWidget {

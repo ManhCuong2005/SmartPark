@@ -22,3 +22,8 @@ enable_confirmations = true
 # The cron uses a dedicated, high-entropy secret checked inside the handler.
 # The public publishable key and authenticated users cannot run this worker.
 verify_jwt = false
+
+[functions.payos-topup]
+# Customer requests verify their user token inside the handler.
+# Webhook requests verify the payOS signature instead.
+verify_jwt = false

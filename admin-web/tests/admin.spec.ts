@@ -45,6 +45,8 @@ async function connect(
         name: "Bãi kiểm thử",
         area: "Địa chỉ kiểm thử",
         enabled: true,
+        car_capacity: 1,
+        motorcycle_capacity: 1,
         car_rate: 15000,
         motorcycle_rate: 5000,
         free_minutes: 10,
@@ -63,6 +65,12 @@ async function connect(
         version: 1,
       },
     ],
+    capacities: [
+      { lot_id: lot, kind: "car", capacity: 1, remaining: 1 },
+      { lot_id: lot, kind: "motorcycle", capacity: 1, remaining: 1 },
+    ],
+    reports: [],
+    report_events: [],
     slots: [
       {
         id: "slot-one",
@@ -131,23 +139,52 @@ async function connect(
           name: params.p_name,
           area: params.p_area,
           enabled: params.p_enabled,
+          car_capacity: params.p_car_capacity,
+          motorcycle_capacity: params.p_motorcycle_capacity,
           car_rate: 15000,
           motorcycle_rate: 5000,
           free_minutes: 0,
           version: 1,
         });
-        for (let i = 0; i < params.p_capacity; i++)
-          raw.slots.push({
-            id: params.p_id + i,
+        raw.capacities.push(
+          {
             lot_id: params.p_id,
-            code: `A00${i + 1}`,
-            enabled: true,
-            occupied: false,
-          });
+            kind: "car",
+            capacity: params.p_car_capacity,
+            remaining: params.p_car_capacity,
+          },
+          {
+            lot_id: params.p_id,
+            kind: "motorcycle",
+            capacity: params.p_motorcycle_capacity,
+            remaining: params.p_motorcycle_capacity,
+          },
+        );
       }
-      if (name === "manage_slot")
-        raw.slots.find((s: any) => s.id === params.p_id).enabled =
-          params.p_enabled;
+      if (
+        name === "apply_operation" &&
+        String(params.p_kind).startsWith("report.")
+      ) {
+        const r = raw.reports.find(
+          (r: any) => r.id === params.p_payload.report_id,
+        );
+        r.status =
+          params.p_kind === "report.request_move"
+            ? "move_requested"
+            : params.p_kind === "report.assign"
+              ? "assigned"
+              : params.p_payload.status;
+        if (params.p_kind === "report.assign")
+          r.assigned_to = params.p_payload.staff_id;
+        r.version++;
+        raw.report_events.push({
+          id: crypto.randomUUID(),
+          report_id: r.id,
+          status: r.status,
+          created_at: new Date().toISOString(),
+          note: "",
+        });
+      }
       if (name === "set_pricing")
         Object.assign(raw.lots[0], {
           car_rate: params.p_car,
@@ -234,11 +271,12 @@ test("lot form sends versioned RPC and waits for cloud response", async ({
   await page.getByRole("button", { name: "+ Thêm bãi đỗ" }).click();
   await page.getByLabel("Tên bãi", { exact: true }).fill("Bãi mới");
   await page.getByLabel("Địa chỉ", { exact: true }).fill("Địa chỉ mới");
-  await page.getByLabel("Số vị trí", { exact: true }).fill("2");
+  await page.getByLabel("Sức chứa ô tô", { exact: true }).fill("2");
   await page.getByRole("button", { name: "Lưu bãi đỗ", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(calls[0].name).toBe("manage_lot");
-  expect(calls[0].params.p_capacity).toBe(2);
+  expect(calls[0].params.p_car_capacity).toBe(2);
+  expect(calls[0].params.p_motorcycle_capacity).toBe(16);
   await expect(
     page.getByRole("cell", { name: "Bãi mới", exact: true }),
   ).toBeVisible();
@@ -382,6 +420,7 @@ for (const width of [390, 768, 1440])
     "/staff",
     "/reports",
     "/settings",
+    "/incidents",
   ]) {
     test(`${route} responsive at ${width}`, async ({ page }) => {
       await connect(page);
@@ -435,8 +474,20 @@ test("reports supports period switching, lot filtering, receipt modal, CSV expor
     version: 1,
   });
   raw.vehicles.push(
-    { id: "v-car", user_id: actor, label: "Mazda 3", plate: "43A12345", kind: "car" },
-    { id: "v-moto", user_id: actor, label: "Honda AirBlade", plate: "43C199999", kind: "motorcycle" },
+    {
+      id: "v-car",
+      user_id: actor,
+      label: "Mazda 3",
+      plate: "43A12345",
+      kind: "car",
+    },
+    {
+      id: "v-moto",
+      user_id: actor,
+      label: "Honda AirBlade",
+      plate: "43C199999",
+      kind: "motorcycle",
+    },
   );
   raw.bookings[0].vehicle_id = "v-car";
   raw.payments[0].received_by = "staff-collector";
@@ -495,32 +546,53 @@ test("reports supports period switching, lot filtering, receipt modal, CSV expor
   });
 
   await page.goto("/reports");
-  await expect(page.getByText("40.000đ", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("40.000đ", { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText("Ô tô: 1 · Xe máy: 1")).toBeVisible();
 
   // Click lot card to filter to Bãi thứ hai
   await page.locator("button.rank-card", { hasText: "Bãi thứ hai" }).click();
-  await expect(page.getByText("10.000đ", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("10.000đ", { exact: true }).first(),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Bỏ lọc bãi" }).click();
-  await expect(page.getByText("40.000đ", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("40.000đ", { exact: true }).first(),
+  ).toBeVisible();
 
   // Switch to "Tất cả" period to include 2026-09 historical payment
   await page.getByRole("tab", { name: "Tất cả" }).click();
-  await expect(page.getByText("85.000đ", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("85.000đ", { exact: true }).first(),
+  ).toBeVisible();
 
   // Back to "Theo tháng" and inspect an empty month -> guidance banner recovers cleanly
   await page.getByRole("tab", { name: "Theo tháng" }).click();
   await page.getByLabel("Tháng báo cáo").fill("2025-01");
-  await expect(page.getByText(/Chưa có khoản thu nào trong tháng 1\/2025/)).toBeVisible();
+  await expect(
+    page.getByText(/Chưa có khoản thu nào trong tháng 1\/2025/),
+  ).toBeVisible();
   await page.getByRole("button", { name: /Xem tháng/ }).click();
-  await expect(page.getByText("40.000đ", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("40.000đ", { exact: true }).first(),
+  ).toBeVisible();
 
   // Search ledger and open receipt dialog
-  await page.getByPlaceholder("Tìm biển số, khách hàng, người thu...").fill("43C199999");
+  await page
+    .getByPlaceholder("Tìm biển số, khách hàng, người thu...")
+    .fill("43C199999");
   await page.getByRole("button", { name: "Chi tiết" }).click();
-  await expect(page.getByRole("dialog", { name: "Chi tiết biên lai thu tiền" })).toBeVisible();
-  await expect(page.getByRole("dialog").getByText("Trần Minh Hà")).toBeVisible();
-  await page.getByRole("dialog").getByRole("button", { name: "Đóng", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Chi tiết biên lai thu tiền" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("dialog").getByText("Trần Minh Hà"),
+  ).toBeVisible();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Đóng", exact: true })
+    .click();
   await page.getByPlaceholder("Tìm biển số, khách hàng, người thu...").fill("");
 
   // Export CSV triggers download and notice
@@ -556,6 +628,113 @@ test("reports supports period switching, lot filtering, receipt modal, CSV expor
     paid_at: `${today}T13:00:00`,
   });
   await page.getByRole("button", { name: "Làm mới" }).click();
-  await expect(page.getByText("90.000đ", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("90.000đ", { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText("43A88888")).toBeVisible();
+});
+
+test("owner requests a move, assigns active staff, resolves and sees processing history", async ({
+  page,
+}) => {
+  const { raw, calls } = await connect(page);
+  raw.profiles.push({
+    id: "staff-user",
+    name: "Nhân viên ca sáng",
+    email: "staff@test.invalid",
+    role: "staff",
+  });
+  raw.memberships.push({
+    lot_id: lot,
+    user_id: "staff-user",
+    shift: "morning",
+    active: true,
+  });
+  raw.reports.push({
+    id: "report-one",
+    lot_id: lot,
+    plate: "43A12345",
+    description: "Chắn lối đi",
+    status: "open",
+    version: 1,
+    created_at: new Date().toISOString(),
+  });
+  raw.reports.push({
+    id: "foreign-report",
+    lot_id: "other-lot",
+    plate: "43A99999",
+    description: "Không được xem",
+    status: "open",
+    version: 1,
+  });
+  await page.goto("/incidents");
+  await expect(page.getByText("Chắn lối đi", { exact: true })).toBeVisible();
+  await expect(page.getByText("Không được xem", { exact: true })).toHaveCount(
+    0,
+  );
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 950 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth + 1,
+      ),
+    ).toBe(false);
+    await page.getByRole("button", {name:"Yêu cầu chủ xe di chuyển"}).click({trial:true});
+    await page.screenshot({
+      animations: "disabled",
+      path: `../.smartpark/ui-review/incidents-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.getByRole("button", { name: "Yêu cầu chủ xe di chuyển" }).click();
+  await expect(
+    page.getByRole("heading", { name: "43A12345 · Đã yêu cầu di chuyển" }),
+  ).toBeVisible();
+  await page.getByLabel("Giao nhân viên 43A12345").selectOption("staff-user");
+  await expect(
+    page.getByRole("heading", { name: "43A12345 · Đã giao nhân viên" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Đã giải quyết", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "43A12345 · Đã giải quyết" }),
+  ).toBeVisible();
+  await page.getByText("Lịch sử xử lý", { exact: true }).click();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "Đã giao nhân viên" }),
+  ).toBeVisible();
+  const commands = calls.filter((c) => c.name === "apply_operation");
+  expect(commands.map((c) => c.params.p_kind)).toEqual([
+    "report.request_move",
+    "report.assign",
+    "report.progress",
+  ]);
+  expect(commands.map((c) => c.params.p_payload.expected_version)).toEqual([
+    1, 2, 3,
+  ]);
+});
+
+test("capacity reduction rejection keeps the form open and explains the conflicting commitments", async ({
+  page,
+}) => {
+  await connect(page);
+  await page.route("**/rest/v1/rpc/manage_lot", (route) =>
+    route.fulfill({
+      status: 400,
+      json: {
+        code: "P0001",
+        message: "CAPACITY_CONFLICT",
+        details: "car: cần tối thiểu 1 chỗ cho vé còn hiệu lực",
+      },
+    }),
+  );
+  await page.goto("/parking");
+  await page.getByRole("button", { name: "Sửa", exact: true }).first().click();
+  await page.getByLabel("Sức chứa ô tô", { exact: true }).fill("0");
+  await page.getByRole("button", { name: "Lưu bãi đỗ", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(
+    page.getByText(/Không thể giảm sức chứa: car: cần tối thiểu 1 chỗ/),
+  ).toBeVisible();
 });

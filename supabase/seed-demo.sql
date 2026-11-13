@@ -1,9 +1,9 @@
--- SMARTPARK DEMO DATA - run in Supabase Cloud SQL Editor AFTER migrations 001/002.
+-- SMARTPARK DEMO DATA - run in Supabase Cloud SQL Editor AFTER migrations 001–010.
 -- All parking locations, vehicles and payments below are fictional test data.
 -- Uses existing, confirmed Auth accounts; never creates accounts or passwords.
 -- A single owner can test both mobile apps; separate accounts are recommended
 -- for testing RLS. Change the three configuration values below if needed.
--- Re-running preserves existing demo rows, edited prices, tickets and QR tokens.
+-- Re-running preserves existing demo rows, edited prices, capacities and tickets.
 -- It does NOT renew old reservation times or reset tickets after check-out.
 -- No application tables, RLS policies or real operational rows are deleted.
 
@@ -22,7 +22,6 @@ declare
   customer_uids uuid[] := '{}';
   staff_uids uuid[] := '{}';
   lot_ids uuid[] := '{}';
-  slot_ids uuid[] := '{}';
   vehicle_ids uuid[] := '{}';
   email_value text;
   person_uid uuid;
@@ -37,6 +36,7 @@ declare
   i integer;
   day_index integer;
   rate integer;
+  plate_base integer;
   minutes integer;
   fee integer;
   actor_uid uuid;
@@ -52,9 +52,9 @@ declare
 begin
   if to_regclass('public.bookings') is null or not exists (
     select 1 from information_schema.columns
-    where table_schema='public' and table_name='parking_slots' and column_name='revision'
+    where table_schema='public' and table_name='parking_lots' and column_name='car_capacity'
   ) then
-    raise exception 'Run SmartPark migrations 001 and 002 first. Do not run test fixtures in Cloud.';
+    raise exception 'Run all SmartPark migrations through 010 first. Do not run test fixtures in Cloud.';
   end if;
 
   select id into owner_uid from auth.users
@@ -111,20 +111,11 @@ begin
     new_id:=md5(seed_prefix||'lot:'||lot_record.n)::uuid;
     lot_ids:=array_append(lot_ids,new_id);
     insert into public.parking_lots(id,owner_id,name,area,latitude,longitude,
-      car_rate,motorcycle_rate,free_minutes,created_at)
+      car_rate,motorcycle_rate,free_minutes,car_capacity,motorcycle_capacity,created_at)
     values(new_id,owner_uid,'[DEMO] SmartPark '||lot_record.name,
       lot_record.area||' — địa điểm mô phỏng',lot_record.lat,lot_record.lng,
-      lot_record.car,lot_record.motorcycle,lot_record.free_mins,now()-interval '45 days')
+      lot_record.car,lot_record.motorcycle,0,38,38,now()-interval '45 days')
     on conflict(id) do nothing;
-    for i in 1..40 loop
-      new_id:=md5(seed_prefix||'slot:'||lot_record.n||':'||i)::uuid;
-      slot_ids:=array_append(slot_ids,new_id);
-      insert into public.parking_slots(id,lot_id,code,enabled)
-      values(new_id,lot_ids[lot_record.n],
-        (case when i<=20 then 'A' else 'B' end)||lpad((1+(i-1)%20)::text,3,'0'),
-        i<=38)
-      on conflict(id) do nothing;
-    end loop;
     foreach person_uid in array staff_uids loop
       insert into public.lot_staff(lot_id,user_id,shift,active)
       values(lot_ids[lot_record.n],person_uid,
@@ -133,6 +124,7 @@ begin
     end loop;
   end loop;
 
+  plate_base:=10000+(('x'||substr(md5(owner_uid::text),1,7))::bit(28)::integer % 70000);
   for i in 1..24 loop
     new_id:=md5(seed_prefix||'vehicle:'||i)::uuid;
     person_uid:=customer_uids[1+(i-1)%cardinality(customer_uids)];
@@ -141,7 +133,7 @@ begin
     insert into public.vehicles(id,user_id,label,plate,kind,is_default)
     values(new_id,person_uid,
       '[DEMO] '||(case when i<=12 then car_labels[i] else motorcycle_labels[i-12] end),
-      (case when i<=12 then '43A' else '43B1' end)||lpad((80000+i)::text,5,'0'),
+      (case when i<=12 then '43A' else '43B1' end)||lpad((plate_base+i)::text,5,'0'),
       case when i<=12 then 'car' else 'motorcycle' end,false)
     on conflict(id) do nothing;
   end loop;
@@ -208,15 +200,13 @@ begin
     fee:=0;
     if ticket_record.status='completed' then
       minutes:=ceil(extract(epoch from (ticket_record.checked_out_at-ticket_record.checked_in_at))/60)::integer;
-      -- Exactly matches apply_operation('staff.check_out'): free minutes are a
-      -- threshold, then round total parked time up to the next hour.
-      fee:=case when minutes<=lot.free_minutes then 0 else ceil(minutes/60.0)::integer*rate end;
+      fee:=smartpark_private.parking_fee(ticket_record.checked_in_at,ticket_record.checked_out_at,rate);
     end if;
-    insert into public.bookings(id,customer_id,vehicle_id,lot_id,slot_id,plate,
+    insert into public.bookings(id,customer_id,vehicle_id,lot_id,plate,vehicle_kind,
       starts_at,ends_at,status,hourly_rate,free_minutes,amount,
       checked_in_at,checked_out_at,version,created_at)
     values(new_id,vehicle.user_id,vehicle.id,lot.id,
-      slot_ids[(ticket_record.lot_n-1)*40+ticket_record.slot_n],vehicle.plate,
+      vehicle.plate,vehicle.kind,
       ticket_record.starts_at,ticket_record.ends_at,ticket_record.status,rate,lot.free_minutes,fee,
       ticket_record.checked_in_at,ticket_record.checked_out_at,
       case when ticket_record.status='completed' then 3 when ticket_record.status in ('parked','cancelled') then 2 else 1 end,
@@ -255,13 +245,8 @@ begin
 end $seed$;
 
 -- The SQL Editor returns this summary after a successful transaction.
-select l.name as bai_do, count(distinct s.id) as so_vi_tri,
-  (select count(*) from public.bookings b where b.lot_id=l.id and b.status='parked') as xe_trong_bai,
-  (select count(*) from public.bookings b where b.lot_id=l.id and b.status='confirmed') as ve_da_dat,
-  (select count(*) from public.bookings b where b.lot_id=l.id) as tong_ve,
-  (select coalesce(sum(p.amount),0) from public.payments p
-    join public.bookings b on b.id=p.booking_id where b.lot_id=l.id) as doanh_thu_mo_phong_vnd
-from public.parking_lots l join public.parking_slots s on s.lot_id=l.id
-where l.name like '[DEMO] SmartPark %'
-group by l.id,l.name order by l.name;
+select l.id,l.name,l.car_capacity,l.motorcycle_capacity,
+ (select count(*) from public.bookings b where b.lot_id=l.id) as tong_ve,
+ (select coalesce(sum(p.amount),0) from public.payments p join public.bookings b on b.id=p.booking_id where b.lot_id=l.id) as doanh_thu_mo_phong_vnd
+from public.parking_lots l where l.name like '[DEMO] SmartPark %' order by l.name;
 commit;

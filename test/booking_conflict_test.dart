@@ -10,6 +10,7 @@ import 'package:smartpark/app/providers.dart';
 import 'package:smartpark/app/smartpark_app.dart';
 import 'package:smartpark/presentation/park_controller.dart';
 import 'support/test_repository.dart';
+import 'support/test_payos_repository.dart';
 
 class ConflictRepository extends TestRepository {
   String mode = 'success';
@@ -44,20 +45,21 @@ class ConflictRepository extends TestRepository {
     DateTime end, {
     String? vehicleId,
   }) async => ReservationAvailability(
-    slots: [
-      for (final row in fixture().rows('slots')) {...row, 'occupied': occupied},
+    capacities: [
+      for (final row in fixture().rows('capacities'))
+        {...row, 'remaining': occupied ? 0 : 1},
     ],
     vehicleConflict: conflict,
   );
   @override
   Future<Json> execute(String id, String kind, Json payload) async {
-    if (kind != 'booking.create') return super.execute(id, kind, payload);
+    if (kind != 'booking.pay') return super.execute(id, kind, payload);
     submitted.add((id: id, payload: Map.of(payload)));
     if (mode == 'race_slot') {
       occupied = true;
       throw const ParkFailure(
         'Ô đỗ đã có lịch trùng khoảng giờ bạn chọn.',
-        code: 'SLOT_TIME_CONFLICT',
+        code: 'CAPACITY_FULL',
       );
     }
     if (mode == 'race_vehicle') {
@@ -69,7 +71,12 @@ class ConflictRepository extends TestRepository {
     }
     if (receipt == null) {
       writes++;
-      receipt = {...super.fixture().rows('bookings').single, ...payload};
+      receipt = {
+        ...super.fixture().rows('bookings').single,
+        ...payload,
+        'prepaid': true,
+        'amount': payload['expected_amount'],
+      };
       if (mode == 'lost_ack') {
         conflict = {...overlappingTicket(), 'id': payload['id']};
         throw const ParkFailure('Mất phản hồi sau khi tạo vé', retryable: true);
@@ -97,7 +104,7 @@ class DelayedBookingRepository extends ConflictRepository {
 
   @override
   Future<Json> execute(String id, String kind, Json payload) async {
-    if (kind == 'booking.create') await writeGate?.future;
+    if (kind == 'booking.pay') await writeGate?.future;
     return super.execute(id, kind, payload);
   }
 }
@@ -106,7 +113,6 @@ Future<ParkController> controller(ConflictRepository backend) async {
   final state = ParkController(backend, monitorConnectivity: false);
   addTearDown(state.dispose);
   await state.initialize();
-  state.slot = 'A001';
   return state;
 }
 
@@ -118,20 +124,33 @@ Future<ParkController> mountSlotPicker(
   await state.initialize();
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [parkControllerProvider.overrideWith((ref) => state)],
+      overrides: [
+        parkControllerProvider.overrideWith((ref) => state),
+        payosTopupRepositoryProvider.overrideWithValue(TestPayosRepository()),
+      ],
       child: const SmartParkApp(initialRoute: '/booking/time'),
     ),
   );
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Tìm chỗ trống'));
-  await tester.pumpAndSettle();
-  await tester.ensureVisible(find.text('A001'));
-  await tester.tap(find.text('A001'));
   await tester.pumpAndSettle();
   return state;
 }
 
 void main() {
+  test(
+    'booking response cannot populate a different signed-in account',
+    () async {
+      final backend = DelayedBookingRepository()..writeGate = Completer<void>();
+      final state = await controller(backend);
+      final request = state.book();
+      await Future<void>.delayed(Duration.zero);
+      backend.loggedIn = false;
+      state.snapshot = ParkingSnapshot.empty;
+      backend.writeGate!.complete();
+      await expectLater(request, throwsA(isA<ParkFailure>()));
+      expect(state.snapshot.rows('bookings'), isEmpty);
+      expect(state.selectedBookingId, isNull);
+    },
+  );
   setUpAll(() async {
     await (FontLoader('Inter')
       ..addFont(rootBundle.load('assets/fonts/Inter.ttf'))).load();
@@ -158,18 +177,22 @@ void main() {
       expect(state.selectedBookingId, isNull);
       final confirmGate = Completer<void>();
       backend.availabilityGate = confirmGate;
-      await tester.tap(find.text('Tiếp tục'));
+      await tester.tap(find.text('Thanh toán'));
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('Đang xử lý…'), findsOneWidget);
       expect(backend.submitted, isEmpty);
       confirmGate.complete();
       await tester.pumpAndSettle();
-      expect(find.text('Thanh toán tại bãi'), findsOneWidget);
+      expect(find.text('Thanh toán vé'), findsOneWidget);
+      await tester.tap(find.text('Số dư gửi xe'));
+      await tester.pumpAndSettle();
 
       final paymentGate = Completer<void>(), writeGate = Completer<void>();
       backend.availabilityGate = paymentGate;
       backend.writeGate = writeGate;
-      await tester.tap(find.text('Xác nhận đặt chỗ'));
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Thanh toán ${money(state.total)}'),
+      );
       await tester.pump(const Duration(seconds: 1));
       expect(backend.writes, 0);
       paymentGate.complete();
@@ -216,27 +239,18 @@ void main() {
           expect(find.text('Chọn thời gian'), findsOneWidget);
           expect(find.text('Xe đã có lịch trùng giờ'), findsOneWidget);
         } else if (failure == 'slot') {
-          expect(find.text('Chọn chỗ đỗ'), findsOneWidget);
-          expect(
-            find.textContaining('Ô vừa chọn không còn trống'),
-            findsOneWidget,
-          );
-          expect(state.bookingOccupied, contains('A001'));
+          expect(find.text('Chọn thời gian'), findsOneWidget);
+          expect(find.textContaining('Bãi đã hết chỗ'), findsOneWidget);
+          expect(state.remainingCapacity, 0);
         } else {
           expect(
             find.textContaining('Kết nối tạm thời gián đoạn'),
-            findsOneWidget,
+            findsWidgets,
           );
           await tester.pump(const Duration(seconds: 5));
           await tester.pumpAndSettle();
           backend.availabilityFailure = null;
           backend.availabilityGate = null;
-          await tester.ensureVisible(find.text('Thử lại'));
-          await tester.tap(find.text('Thử lại'));
-          await tester.pumpAndSettle();
-          await tester.ensureVisible(find.text('A001'));
-          await tester.tap(find.text('A001'));
-          await tester.pumpAndSettle();
           await tester.tap(find.text('Tiếp tục'));
           await tester.pumpAndSettle();
           expect(find.text('Xác nhận đặt chỗ'), findsOneWidget);
@@ -252,10 +266,10 @@ void main() {
           ConflictRepository()
             ..conflict = ConflictRepository().overlappingTicket();
       final state = await controller(backend);
-      expect(state.bookingSlots.single['occupied'], false);
+      expect(state.bookingCapacities.first['remaining'], 1);
       expect(state.canContinueBooking, false);
       await expectLater(
-        state.prepareBooking(requireSlot: false),
+        state.prepareBooking(),
         throwsA(
           isA<ParkFailure>().having(
             (e) => e.code,
@@ -265,8 +279,11 @@ void main() {
         ),
       );
       expect(backend.submitted, isEmpty);
-      expect(state.vehicleConflictMessage, contains('Công viên 29/3'));
-      expect(state.selectedSlotId, isNull);
+      expect(
+        state.vehicleConflictMessage,
+        contains('đã có vé trùng thời gian'),
+      );
+      expect(state.canContinueBooking, false);
     },
   );
 
@@ -280,15 +297,11 @@ void main() {
       await expectLater(
         selected.book(),
         throwsA(
-          isA<ParkFailure>().having(
-            (e) => e.code,
-            'code',
-            'SLOT_TIME_CONFLICT',
-          ),
+          isA<ParkFailure>().having((e) => e.code, 'code', 'CAPACITY_FULL'),
         ),
       );
       expect(backend.submitted, isEmpty);
-      expect(selected.selectedSlotId, isNull);
+      expect(selected.vehicleConflict, isNull);
     },
   );
 
@@ -306,13 +319,10 @@ void main() {
             isA<ParkFailure>().having(
               (e) => e.code,
               'code',
-              mode == 'race_slot'
-                  ? 'SLOT_TIME_CONFLICT'
-                  : 'VEHICLE_TIME_CONFLICT',
+              mode == 'race_slot' ? 'CAPACITY_FULL' : 'VEHICLE_TIME_CONFLICT',
             ),
           ),
         );
-        expect(selected.selectedSlotId, isNull);
         expect(selected.canContinueBooking, false);
         expect(selected.selectedBookingId, isNull);
         expect(backend.writes, 0);
@@ -333,7 +343,6 @@ void main() {
         ),
       );
       await state.loadAvailability();
-      expect(state.selectedSlotId, isNull);
       expect(state.vehicleConflict, isNotNull);
       await state.book();
       expect(backend.writes, 1);
@@ -366,11 +375,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Tìm chỗ trống'));
+    await tester.tap(find.text('Tiếp tục'));
     await tester.pumpAndSettle();
     expect(find.text('Chọn thời gian'), findsOneWidget);
     expect(find.text('Xe đã có lịch trùng giờ'), findsOneWidget);
-    expect(find.text('Xem vé đang trùng'), findsOneWidget);
+    expect(find.text('Xem vé đang trùng'), findsNothing);
     expect(backend.submitted, isEmpty);
     await tester.ensureVisible(find.text('Xe đã có lịch trùng giờ'));
     await tester.pump(const Duration(seconds: 5));
@@ -399,27 +408,34 @@ void main() {
       await state.initialize();
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [parkControllerProvider.overrideWith((ref) => state)],
+          overrides: [
+            parkControllerProvider.overrideWith((ref) => state),
+            payosTopupRepositoryProvider.overrideWithValue(
+              TestPayosRepository(),
+            ),
+          ],
           child: const SmartParkApp(initialRoute: '/booking/time'),
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Tìm chỗ trống'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('A001'));
-      await tester.tap(find.text('A001'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Tiếp tục'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Tiếp tục'));
+      await tester.tap(find.text('Thanh toán'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Số dư gửi xe'));
       await tester.pumpAndSettle();
       backend.mode = 'race_slot';
-      await tester.tap(find.text('Xác nhận đặt chỗ'));
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Thanh toán ${money(state.total)}'),
+      );
       await tester.pumpAndSettle();
-      expect(find.text('Chọn chỗ đỗ'), findsOneWidget);
-      expect(state.bookingOccupied, contains('A001'));
-      expect(state.selectedSlotId, isNull);
+      expect(find.text('Thanh toán vé'), findsOneWidget);
+      expect(state.remainingCapacity, 0);
+      expect(state.vehicleConflict, isNull);
       expect(find.text('Vé điện tử SmartPark'), findsNothing);
+      await tester.tap(find.text('Đổi thời gian'));
+      await tester.pumpAndSettle();
+      expect(find.text('Chọn thời gian'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
