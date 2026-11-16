@@ -7,6 +7,7 @@ import '../domain/device_notifications.dart';
 import '../domain/parking_repository.dart';
 import '../domain/models.dart';
 import '../domain/parking_rules.dart';
+import '../domain/plate_scanning.dart';
 export '../domain/models.dart';
 
 class ParkingLot {
@@ -95,11 +96,7 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
       snapshot.rows('profiles').where((p) => p['id'] == userId).firstOrNull ??
       {};
   String get name => profile['name'] as String? ?? '';
-  bool get canStaff =>
-      profile['role'] == 'owner' ||
-      snapshot
-          .rows('memberships')
-          .any((m) => m['user_id'] == userId && m['active'] == true);
+  bool get canStaff => profile['role'] == 'owner';
   DateTime get startsAt =>
       DateTime(date.year, date.month, date.day, start.hour, start.minute);
   DateTime get endsAt =>
@@ -140,18 +137,9 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
   List<ParkingLot> get staffLots =>
       lots
           .where(
-            (l) =>
-                snapshot
-                    .rows('lots')
-                    .any((r) => r['id'] == l.id && r['owner_id'] == userId) ||
-                snapshot
-                    .rows('memberships')
-                    .any(
-                      (m) =>
-                          m['lot_id'] == l.id &&
-                          m['user_id'] == userId &&
-                          m['active'] == true,
-                    ),
+            (l) => snapshot
+                .rows('lots')
+                .any((r) => r['id'] == l.id && r['owner_id'] == userId),
           )
           .toList();
   bool get availabilityReady =>
@@ -631,7 +619,7 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
       await refresh();
       if (staff && !canStaff) {
         error =
-            'Tài khoản chưa được chủ bãi phân công. Có thể đăng nhập giao diện khách.';
+            'Máy quét cần tài khoản quản trị viên. Tài khoản khách không có quyền vận hành.';
         return false;
       }
       return true;
@@ -652,16 +640,16 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     if (booking != null) {
       if (booking['customer_id'] != actor ||
           booking['status'] != 'parked' ||
-          booking['prepaid'] != true ||
           booking['local_pending'] == true ||
           newEnd == null) {
         throw const ParkFailure(
-          'Chỉ thanh toán gia hạn vé trả trước đang gửi của chính bạn.',
+          'Chỉ thanh toán gia hạn vé đang gửi của chính bạn.',
         );
       }
       final end = newEnd.toUtc().toIso8601String();
       if (_extensionPayload?['booking_id'] != booking['id'] ||
-          _extensionPayload?['ends_at'] != end) {
+          _extensionPayload?['ends_at'] != end ||
+          _extensionPayload?['expected_amount'] == null) {
         _extensionOperation = const Uuid().v4();
         _extensionPayload = {
           'booking_id': booking['id'],
@@ -689,10 +677,11 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     // Replay the same payment after a lost acknowledgement before preflight.
     if (!retrying) {
       await prepareBooking();
-      if (userId != actor)
+      if (userId != actor) {
         throw const ParkFailure(
           'Tài khoản đã thay đổi. Vui lòng đăng nhập lại.',
         );
+      }
       _bookingOperation = const Uuid().v4();
       _bookingPayload = {...request, 'id': const Uuid().v4()};
     }
@@ -704,6 +693,44 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> book() => payBooking();
+
+  Future<void> reservePayLater() async {
+    final actor = userId;
+    if (actor == null) throw const ParkFailure('Vui lòng đăng nhập.');
+    final payload = <String, dynamic>{
+      'vehicle_id': vehicle.id,
+      'lot_id': lot.id,
+      'starts_at': startsAt.toUtc().toIso8601String(),
+      'ends_at': endsAt.toUtc().toIso8601String(),
+    };
+    final retrying =
+        _bookingPayload != null &&
+        payload.entries.every((e) => _bookingPayload![e.key] == e.value) &&
+        _bookingPayload!['pay_later'] == true;
+    if (!retrying) {
+      await prepareBooking();
+      if (userId != actor) throw const ParkFailure('Tài khoản đã thay đổi.');
+      _bookingOperation = const Uuid().v4();
+      _bookingPayload = {
+        ...payload,
+        'id': const Uuid().v4(),
+        'pay_later': true,
+      };
+    }
+    try {
+      final result = await backend.execute(
+        _bookingOperation!,
+        'booking.reserve',
+        _bookingPayload!,
+      );
+      await acceptPaidBooking(result, actor);
+    } on ParkFailure catch (failure) {
+      if (!failure.retryable && failure.code != 'PAY_LATER_BALANCE_REQUIRED') {
+        clearPayment();
+      }
+      rethrow;
+    }
+  }
 
   Future<void> payBooking({Json? booking, DateTime? newEnd}) async {
     final actor = userId;
@@ -717,8 +744,9 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
       await acceptPaidBooking(result, actor!, extension: booking != null);
     } on ParkFailure catch (e) {
       // Insufficient funds may be topped up; retain the same operation ID.
-      if (!e.retryable && e.code != 'INSUFFICIENT_BALANCE')
+      if (!e.retryable && e.code != 'INSUFFICIENT_BALANCE') {
         clearPayment(extension: booking != null);
+      }
       if (booking == null &&
           [
             'CAPACITY_FULL',
@@ -776,9 +804,6 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
   String? _extensionOperation;
   Json? _extensionPayload;
   Future<void> extendBooking(Json booking, DateTime newEnd) async {
-    if (booking['prepaid'] == true) {
-      return payBooking(booking: booking, newEnd: newEnd);
-    }
     final actor = userId;
     if (actor == null ||
         booking['customer_id'] != actor ||
@@ -790,7 +815,8 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     }
     final end = newEnd.toUtc().toIso8601String();
     if (_extensionPayload?['booking_id'] != booking['id'] ||
-        _extensionPayload?['ends_at'] != end) {
+        _extensionPayload?['ends_at'] != end ||
+        _extensionPayload?['expected_amount'] != null) {
       _extensionOperation = const Uuid().v4();
       _extensionPayload = {
         'booking_id': booking['id'],
@@ -801,7 +827,7 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final result = await backend.execute(
         _extensionOperation!,
-        'booking.extend',
+        'booking.extend.deferred',
         _extensionPayload!,
       );
       if (_disposed) return;
@@ -968,6 +994,71 @@ class ParkController extends ChangeNotifier with WidgetsBindingObserver {
     });
     selectedBookingId = found['id'] as String;
     _notify();
+  }
+
+  /// Online-only: a lost acknowledgement must be retried with the same ID.
+  Future<void> openKiosk(
+    String sessionId,
+    String lotId,
+    ScanDirection direction,
+  ) async {
+    final actor = userId;
+    if (actor == null || !staffLots.any((l) => l.id == lotId)) {
+      throw const ParkFailure(
+        'Không có quyền quét tại bãi này.',
+        code: 'FORBIDDEN',
+      );
+    }
+    await backend.execute(sessionId, 'kiosk.open', {
+      'lot_id': lotId,
+      'direction': direction.name,
+    });
+    if (userId != actor) {
+      throw const ParkFailure(
+        'Tài khoản đã thay đổi.',
+        code: 'ACCOUNT_CHANGED',
+      );
+    }
+  }
+
+  Future<Json> scanPlate(
+    String operationId,
+    String lotId,
+    String raw, {
+    required String sessionId,
+    required ScanDirection direction,
+  }) async {
+    final actor = userId;
+    if (actor == null || !staffLots.any((l) => l.id == lotId)) {
+      throw const ParkFailure(
+        'Tài khoản không có quyền quét tại bãi này.',
+        code: 'FORBIDDEN',
+      );
+    }
+    final plate = normalizePlate(raw);
+    if (!isValidPlate(plate)) {
+      throw const ParkFailure('Biển số không hợp lệ.', code: 'INVALID_PLATE');
+    }
+    final result = await backend.execute(operationId, 'kiosk.scan', {
+      'lot_id': lotId,
+      'plate': plate,
+      'session_id': sessionId,
+      'direction': direction.name,
+    });
+    if (userId != actor) {
+      throw const ParkFailure(
+        'Tài khoản đã thay đổi.',
+        code: 'ACCOUNT_CHANGED',
+        retryable: true,
+      );
+    }
+    final booking = Map<String, dynamic>.from(result['booking'] as Map);
+    snapshot = ParkingSnapshot({
+      ...snapshot.data,
+      'bookings': [booking, ...bookings.where((b) => b['id'] != booking['id'])],
+    });
+    _notify();
+    return result;
   }
 
   Future<void> staffAction(

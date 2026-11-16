@@ -27,6 +27,10 @@ try{
  const migrations=readdirSync(join(root,'supabase','migrations')).filter(f=>f.endsWith('.sql')).sort().map(f=>'supabase/migrations/'+f);
  const expiryPolicy='supabase/migrations/202611120008_expiry_and_extensions.sql';
  const prepaidPolicy='supabase/migrations/202611120012_prepaid_bookings.sql';
+ const automaticPolicy='supabase/migrations/202611160013_automatic_scanning.sql';
+ const extensionChoicesPolicy='supabase/migrations/202611160014_extension_payment_choices.sql';
+ const ownerWalletPolicy='supabase/migrations/202611160015_admin_wallet_and_owner_kiosk.sql';
+ const directionalPolicy='supabase/migrations/202611160016_directional_kiosk.sql';
  // Verify the historical grace-period behavior before the policy change, then
  // verify deletion and extensions against the final schema. Never rewrite old migrations.
  for(const file of ['supabase/tests/bootstrap.sql',...migrations.filter(f=>f<expiryPolicy),'supabase/tests/behavior.sql','supabase/tests/staff_permissions.sql','supabase/tests/deadlines_and_push.sql','supabase/tests/reminder_flow.sql','supabase/tests/booking_flow.sql','supabase/tests/booking_availability.sql','supabase/tests/paid_checkout.sql',expiryPolicy,'supabase/tests/expiry_and_extensions.sql',...migrations.filter(f=>f>expiryPolicy&&f<prepaidPolicy),'supabase/tests/capacity_and_plates.sql']){
@@ -89,7 +93,52 @@ try{
  }
  // Cash-era fixtures above verify the old contract before switching new bookings
  // to mandatory prepayment. No old fixture is silently granted free admission.
- for(const file of [...migrations.filter(f=>f>=prepaidPolicy),'supabase/tests/prepaid_bookings.sql']){
+ for(const file of [...migrations.filter(f=>f>=prepaidPolicy&&f<automaticPolicy),'supabase/tests/prepaid_bookings.sql',
+  ...migrations.filter(f=>f>=automaticPolicy&&f<extensionChoicesPolicy),'supabase/tests/automatic_scanning.sql']){
+  run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-f',join(root,file)]);console.log(`PASS ${file}`);
+ }
+ run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-f',join(root,'supabase/tests/automatic_scanning_race.sql')]);
+ const scanSql=n=>`begin; set local role authenticated;
+  select set_config('request.jwt.claim.sub','14000000-0000-0000-0000-000000000003',true);
+  select public.apply_operation('74000000-0000-0000-0000-00000000000${n}','kiosk.scan',
+   '{"lot_id":"24000000-0000-0000-0000-00000000000${n}","plate":"43A94${n}${n}${n}"}'); commit;`;
+ const exits=await Promise.all([1,2].map(n=>new Promise((resolve,reject)=>{
+  const child=spawn(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-c',scanSql(n)],{windowsHide:true});
+  let output='';child.stdout.on('data',d=>output+=d);child.stderr.on('data',d=>output+=d);
+  child.on('error',reject);child.on('close',code=>resolve({n,code,output}));
+ })));
+ if(exits.filter(r=>r.code===0).length!==1||!exits.some(r=>/INSUFFICIENT_BALANCE/.test(r.output)))throw new Error(JSON.stringify(exits));
+ run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-c',scanSql(exits.find(r=>r.code===0).n)]);
+ run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-c',`
+  select public.test_assert(smartpark_private.wallet_balance('14000000-0000-0000-0000-000000000001')=0,'wallet cannot be spent twice across lots');
+  select public.test_assert((select count(*)=1 and sum(p.amount)=15000 from public.payments p join public.bookings b on b.id=p.booking_id
+   where b.customer_id='14000000-0000-0000-0000-000000000001'),'concurrent exits debit exactly once, including replay');`]);
+ console.log('PASS concurrent kiosk exits across two lots: one debit, insufficient funds retains the other visit, replay is safe');
+ for(const file of [...migrations.filter(f=>f>=extensionChoicesPolicy&&f<ownerWalletPolicy),'supabase/tests/extension_payment_choices.sql','supabase/tests/personnel_retirement_fixture.sql',
+  ...migrations.filter(f=>f>=ownerWalletPolicy&&f<directionalPolicy),'supabase/tests/admin_wallet_and_kiosk.sql']){
+  run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-f',join(root,file)]);console.log(`PASS ${file}`);
+ }
+ const parked=JSON.parse(run(binary('psql'),[url,'-X','-At','-v','ON_ERROR_STOP=1','-c',`
+  select jsonb_build_object('lot_id',lot_id,'plate',plate) from public.bookings
+  where customer_id='14000000-0000-0000-0000-000000000001' and status='parked' limit 1;`]).trim());
+ run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-c',`
+  insert into public.wallet_topups(customer_id,amount,payment_link_id,paid_at)
+  values('14000000-0000-0000-0000-000000000001',15000,'correction-checkout-race',now());`]);
+ const commands=[
+  `select public.admin_adjust_wallet('77000000-0000-0000-0000-000000000001','14000000-0000-0000-0000-000000000001',-15000,'Concurrent correction');`,
+  `select public.apply_operation('77000000-0000-0000-0000-000000000002','kiosk.scan','${JSON.stringify(parked)}');`
+ ];
+ const correctionRace=await Promise.all(commands.map(command=>new Promise((resolve,reject)=>{
+  const sql=`begin; set local role authenticated; select set_config('request.jwt.claim.sub','14000000-0000-0000-0000-000000000004',true); ${command} commit;`;
+  const child=spawn(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-c',sql],{windowsHide:true});
+  let output='';child.stdout.on('data',d=>output+=d);child.stderr.on('data',d=>output+=d);
+  child.on('error',reject);child.on('close',code=>resolve({code,output}));
+ })));
+ if(correctionRace.filter(r=>r.code===0).length!==1||!correctionRace.some(r=>/INSUFFICIENT_BALANCE/.test(r.output)))throw new Error(JSON.stringify(correctionRace));
+ run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-c',`
+  select public.test_assert(smartpark_private.wallet_balance('14000000-0000-0000-0000-000000000001')=0,'manual debit and checkout cannot overdraw the same wallet');`]);
+ console.log('PASS concurrent manual debit versus automatic checkout: exactly one succeeds, balance stays nonnegative');
+ for(const file of [...migrations.filter(f=>f>=directionalPolicy),'supabase/tests/directional_kiosk.sql']){
   run(binary('psql'),[url,'-X','-v','ON_ERROR_STOP=1','-f',join(root,file)]);console.log(`PASS ${file}`);
  }
 }finally{

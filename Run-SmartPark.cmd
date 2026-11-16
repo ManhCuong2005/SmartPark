@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title SmartPark - Customer, Staff and Admin
+title SmartPark - Customer, Camera and Admin
 cd /d "%~dp0"
 where node.exe >nul 2>nul
 if errorlevel 1 (

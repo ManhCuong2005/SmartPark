@@ -13,20 +13,34 @@ void main() {
     'prepaid': true,
   };
 
-  test(
-    'prepaid exit never collects the booked fee again, including overtime',
-    () {
-      expect(checkoutAmount(booking, entered), 0);
-      expect(
-        checkoutAmount(booking, plannedEnd.add(const Duration(hours: 1))),
-        0,
-      );
-    },
-  );
+  test('prepaid exit collects only time beyond the paid coverage', () {
+    expect(checkoutAmount(booking, entered), 0);
+    expect(
+      checkoutAmount(booking, plannedEnd.add(const Duration(hours: 1))),
+      15000,
+    );
+  });
 
-  test('legacy tickets keep actual-time cash checkout', () {
+  test('pay-later tickets use actual-time wallet checkout', () {
     expect(checkoutAmount({...booking, 'prepaid': false}, entered), 15000);
     expect(checkoutAmount({...booking, 'prepaid': false}, plannedEnd), 30000);
+  });
+
+  test('extending the planned end does not make unpaid hours free', () {
+    final extended = {
+      ...booking,
+      'paid_until': plannedEnd.toIso8601String(),
+      'ends_at': plannedEnd.add(const Duration(hours: 2)).toIso8601String(),
+    };
+    expect(checkoutAmount(extended, plannedEnd), 0);
+    expect(
+      checkoutAmount(extended, plannedEnd.add(const Duration(minutes: 1))),
+      15000,
+    );
+    expect(
+      checkoutAmount(extended, plannedEnd.add(const Duration(minutes: 61))),
+      30000,
+    );
   });
 
   test('extension charges only the extra duration, rounded up to one hour', () {
@@ -43,4 +57,25 @@ void main() {
       30000,
     );
   });
+  test(
+    'pay-now extension includes earlier deferred hours and unpaid original time',
+    () {
+      final deferred = {
+        ...booking,
+        'paid_until': plannedEnd.toIso8601String(),
+        'ends_at': plannedEnd.add(const Duration(hours: 1)).toIso8601String(),
+      };
+      expect(
+        extensionFee(deferred, plannedEnd.add(const Duration(hours: 2))),
+        30000,
+      );
+      expect(
+        extensionFee({
+          ...booking,
+          'prepaid': false,
+        }, plannedEnd.add(const Duration(hours: 1))),
+        45000,
+      );
+    },
+  );
 }

@@ -95,9 +95,7 @@ void main() {
       '/profile/edit',
       '/notifications',
       '/sync',
-      '/staff/home',
-      '/staff/capacity',
-      '/staff/account',
+      '/staff/scan',
     ]) {
       testWidgets('$route responds without overflow at $width', (tester) async {
         await mount(

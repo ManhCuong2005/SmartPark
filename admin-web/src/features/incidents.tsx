@@ -7,7 +7,7 @@ import { Button, Panel } from "../components/ui";
 const labels: Record<string, string> = {
   open: "Mới gửi",
   move_requested: "Đã yêu cầu di chuyển",
-  assigned: "Đã giao nhân viên",
+  assigned: "Đã tiếp nhận",
   in_progress: "Đang xử lý",
   resolved: "Đã giải quyết",
   rejected: "Đã từ chối",
@@ -42,7 +42,8 @@ export function IncidentsPage() {
         <div>
           <h1>Báo cáo đỗ sai</h1>
           <p>
-            Kiểm tra hiện trường, yêu cầu di chuyển hoặc giao nhân viên xử lý.
+            Theo dõi báo cáo, yêu cầu chủ xe di chuyển và cập nhật kết quả xử
+            lý.
           </p>
         </div>
       </div>
@@ -69,29 +70,15 @@ export function IncidentsPage() {
               >
                 Yêu cầu chủ xe di chuyển
               </Button>
-              <label>
-                Giao nhân viên{" "}
-                <select
-                  aria-label={`Giao nhân viên ${r.plate}`}
-                  value=""
-                  disabled={busy}
-                  onChange={(e) => {
-                    if (e.target.value)
-                      void act(r, "report.assign", {
-                        staff_id: e.target.value,
-                      });
-                  }}
-                >
-                  <option value="">Chọn nhân viên</option>
-                  {data.staff
-                    .filter((s) => s.lotId === r.lot_id && s.active)
-                    .map((s) => (
-                      <option key={s.userId} value={s.userId}>
-                        {s.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
+              <Button
+                secondary
+                disabled={busy}
+                onClick={() =>
+                  void act(r, "report.progress", { status: "in_progress" })
+                }
+              >
+                Bắt đầu xử lý
+              </Button>
               <Button
                 secondary
                 disabled={busy}
@@ -112,12 +99,6 @@ export function IncidentsPage() {
               </Button>
             </div>
           )}
-          <p>
-            Phụ trách:{" "}
-            {data.staff.find(
-              (s) => s.userId === r.assigned_to && s.lotId === r.lot_id,
-            )?.name ?? "Chưa phân công"}
-          </p>
           <details>
             <summary>Lịch sử xử lý</summary>
             <ol>

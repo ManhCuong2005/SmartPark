@@ -16,6 +16,8 @@ jobs:
         with:
           flutter-version: "3.29.0"
           cache: true
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager "platforms;android-36" "ndk;27.0.12077973"
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
@@ -58,7 +60,6 @@ jobs:
       - name: Fastlane build only
         working-directory: android
         env:
-          BUILD_NUMBER: ${{ github.run_number }}
           FASTLANE_SKIP_UPDATE_CHECK: "true"
           FASTLANE_OPT_OUT_USAGE: "true"
         run: bundle install && bundle exec fastlane android build_release

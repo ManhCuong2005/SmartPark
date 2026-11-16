@@ -250,7 +250,7 @@ class SupabaseParkingRepository implements ParkingRepository {
       'parking_lots',
       'parking_reports',
       'report_events',
-      'lot_staff',
+      'wallet_adjustments',
       'vehicles',
       'bookings',
       'payments',

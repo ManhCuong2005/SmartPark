@@ -32,16 +32,7 @@ class _BookingExtensionSheetState extends State<BookingExtensionSheet> {
   @override
   Widget build(BuildContext context) {
     final until = base.add(Duration(hours: hours));
-    final prepaid = widget.booking['prepaid'] == true;
-    final expected =
-        prepaid
-            ? extensionFee(widget.booking, until)
-            : calculateFee(
-              DateTime.parse(widget.booking['checked_in_at'] as String),
-              until,
-              widget.booking['hourly_rate'] as int,
-              0,
-            );
+    final expected = checkoutAmount(widget.booking, until);
     return SafeArea(
       child: SingleChildScrollView(
         child: Padding(
@@ -57,9 +48,7 @@ class _BookingExtensionSheetState extends State<BookingExtensionSheet> {
               ),
               const SizedBox(height: 12),
               Text(
-                prepaid
-                    ? 'Thanh toán phần thời gian tăng thêm bằng QR hoặc số dư. Máy chủ kiểm tra sức chứa trước khi cập nhật giờ ra.'
-                    : 'Vé cũ vẫn tính phí khi xe ra. Máy chủ sẽ kiểm tra lịch bãi và phương tiện trước khi đồng ý gia hạn.',
+                'Chọn thanh toán ngay hoặc thu khi xe ra ở bước tiếp theo. Thu khi ra yêu cầu số dư lớn hơn 100.000đ; máy chủ kiểm tra sức chứa trước khi xác nhận.',
               ),
               const SizedBox(height: 16),
               Wrap(
@@ -80,42 +69,32 @@ class _BookingExtensionSheetState extends State<BookingExtensionSheet> {
                 'Giờ ra mới',
                 '${displayDate(until)} ${clock(TimeOfDay.fromDateTime(until))}',
               ),
-              DetailRow(
-                prepaid ? 'Thanh toán thêm' : 'Phí dự kiến đến giờ mới',
-                money(expected),
-              ),
+              DetailRow('Phí còn lại dự kiến đến giờ mới', money(expected)),
               const SizedBox(height: 16),
               AsyncParkButton(
-                prepaid ? 'Thanh toán gia hạn' : 'Xác nhận gia hạn',
+                'Tiếp tục thanh toán gia hạn',
                 enabled: !submitting,
                 action: () async {
                   setState(() => submitting = true);
                   try {
-                    if (prepaid) {
-                      final paid = await Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (_) => PaymentScreen(
-                                repository: widget.repository,
-                                booking: widget.booking,
-                                newEnd: until,
-                              ),
-                        ),
-                      );
-                      if (paid == true && context.mounted)
-                        Navigator.pop(context, true);
-                      return;
-                    }
-                    await widget.repository.extendBooking(
-                      widget.booking,
-                      until,
+                    final completed = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (_) => PaymentScreen(
+                              repository: widget.repository,
+                              booking: widget.booking,
+                              newEnd: until,
+                            ),
+                      ),
                     );
+                    if (completed == true && context.mounted) {
+                      Navigator.pop(context, true);
+                    }
                   } finally {
                     if (mounted) setState(() => submitting = false);
                   }
                 },
-                onSuccess: prepaid ? null : () => Navigator.pop(context, true),
               ),
               Center(
                 child: TextButton(

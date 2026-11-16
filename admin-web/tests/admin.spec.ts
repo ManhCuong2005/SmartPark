@@ -26,7 +26,12 @@ function session() {
 }
 async function connect(
   page: Page,
-  { loggedIn = true, owner = true, conflict = false, staffError = "" } = {},
+  {
+    loggedIn = true,
+    owner = true,
+    conflict = false,
+    loseAdjustmentAck = false,
+  } = {},
 ) {
   const raw: Record<string, any> = {
     server_time: new Date().toISOString(),
@@ -80,7 +85,6 @@ async function connect(
         occupied: false,
       },
     ],
-    memberships: [],
     vehicles: [],
     notifications: [],
     bookings: [
@@ -107,6 +111,14 @@ async function connect(
       },
     ],
   };
+  const walletAccount = {
+    id: "wallet-customer",
+    email: "customer@test.invalid",
+    name: "Khách kiểm thử",
+    role: "customer",
+    balance: 100000,
+  };
+  const adjustments: Record<string, any>[] = [];
   const calls: { name: string; params: Record<string, any> }[] = [];
   await page.routeWebSocket(
     "wss://odpxmbkzdqutxitsdfaw.supabase.co/**",
@@ -121,12 +133,46 @@ async function connect(
       if (url.pathname === "/auth/v1/token")
         return route.fulfill({ json: session() });
       if (name === "park_snapshot") return route.fulfill({ json: raw });
-      calls.push({ name, params });
-      if (name === "manage_staff" && staffError)
+      if (name === "admin_wallet_accounts") {
+        const q = String(params.p_query ?? "").toLowerCase();
+        const accounts = `${walletAccount.email} ${walletAccount.name}`
+          .toLowerCase()
+          .includes(q)
+          ? [walletAccount]
+          : [];
         return route.fulfill({
-          status: 400,
-          json: { code: "P0001", message: staffError },
+          json: { accounts, total: accounts.length, adjustments },
         });
+      }
+      calls.push({ name, params });
+      if (name === "admin_adjust_wallet") {
+        let receipt = adjustments.find((a) => a.id === params.p_operation_id);
+        if (!receipt) {
+          if (walletAccount.balance + params.p_amount < 0)
+            return route.fulfill({
+              status: 400,
+              json: { code: "P0001", message: "INSUFFICIENT_BALANCE" },
+            });
+          walletAccount.balance += params.p_amount;
+          receipt = {
+            id: params.p_operation_id,
+            customer_id: walletAccount.id,
+            customer_email: walletAccount.email,
+            actor_id: actor,
+            actor_email: "owner@test.invalid",
+            amount: params.p_amount,
+            reason: params.p_reason,
+            balance_after: walletAccount.balance,
+            created_at: new Date().toISOString(),
+          };
+          adjustments.unshift(receipt);
+          if (loseAdjustmentAck) {
+            loseAdjustmentAck = false;
+            return route.abort("failed");
+          }
+        }
+        return route.fulfill({ json: receipt });
+      }
       if (conflict)
         return route.fulfill({
           status: 400,
@@ -171,11 +217,7 @@ async function connect(
         r.status =
           params.p_kind === "report.request_move"
             ? "move_requested"
-            : params.p_kind === "report.assign"
-              ? "assigned"
-              : params.p_payload.status;
-        if (params.p_kind === "report.assign")
-          r.assigned_to = params.p_payload.staff_id;
+            : params.p_payload.status;
         r.version++;
         raw.report_events.push({
           id: crypto.randomUUID(),
@@ -192,29 +234,6 @@ async function connect(
           free_minutes: params.p_free_minutes,
           version: 2,
         });
-      if (name === "manage_staff") {
-        let person = raw.profiles.find((p: any) => p.email === params.p_email);
-        if (!person) {
-          person = {
-            id: "staff-user",
-            email: params.p_email,
-            name: "Nhân viên kiểm thử",
-            role: "staff",
-          };
-          raw.profiles.push(person);
-        }
-        const membership = raw.memberships.find(
-          (s: any) => s.user_id === person.id && s.lot_id === params.p_lot_id,
-        );
-        const value = {
-          user_id: person.id,
-          lot_id: params.p_lot_id,
-          shift: params.p_shift,
-          active: params.p_active,
-        };
-        if (membership) Object.assign(membership, value);
-        else raw.memberships.push(value);
-      }
       return route.fulfill({ json: null });
     },
   );
@@ -226,8 +245,118 @@ async function connect(
         value: session(),
       },
     );
-  return { raw, calls };
+  return { raw, calls, walletAccount, adjustments };
 }
+test("admin credits and debits wallets with a reason and audit history, without personnel menus", async ({
+  page,
+}) => {
+  const { walletAccount, adjustments } = await connect(page);
+  await page.goto("/wallets");
+  await expect(
+    page.getByRole("heading", { name: "Số dư tài khoản", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Nhân viên", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByPlaceholder("Tìm tên hoặc email tài khoản")
+    .fill("customer@test.invalid");
+  await expect(
+    page.locator("table").first().getByText("customer@test.invalid"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Cộng tiền", exact: true }).click();
+  await page.getByLabel("Số tiền (đ)", { exact: true }).fill("2000000");
+  await page
+    .getByLabel("Lý do điều chỉnh", { exact: true })
+    .fill("Cộng số dư kiểm thử");
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 950 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth + 1,
+      ),
+    ).toBe(false);
+    await page.screenshot({
+      path: `../.smartpark/ui-review/wallet-adjustment-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page
+    .getByRole("button", { name: "Xác nhận cộng tiền", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(walletAccount.balance).toBe(2100000);
+  await expect(
+    page
+      .locator("table")
+      .last()
+      .getByText("Cộng số dư kiểm thử", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Trừ tiền", exact: true }).click();
+  await page.getByLabel("Số tiền (đ)", { exact: true }).fill("100000");
+  await page
+    .getByLabel("Lý do điều chỉnh", { exact: true })
+    .fill("Điều chỉnh giảm kiểm thử");
+  await page
+    .getByRole("button", { name: "Xác nhận trừ tiền", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(walletAccount.balance).toBe(2000000);
+  expect(adjustments).toHaveLength(2);
+});
+
+test("wallet rejects overdraft and retains editable correction", async ({
+  page,
+}) => {
+  const { walletAccount, adjustments } = await connect(page);
+  await page.goto("/wallets");
+  await page.getByRole("button", { name: "Trừ tiền", exact: true }).click();
+  await page.getByLabel("Số tiền (đ)", { exact: true }).fill("100001");
+  await page
+    .getByLabel("Lý do điều chỉnh", { exact: true })
+    .fill("Kiểm thử thiếu số dư");
+  await page
+    .getByRole("button", { name: "Xác nhận trừ tiền", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Số dư hiện tại không đủ",
+  );
+  await expect(page.getByLabel("Số tiền (đ)", { exact: true })).toBeEnabled();
+  expect(walletAccount.balance).toBe(100000);
+  expect(adjustments).toHaveLength(0);
+});
+
+test("wallet restores an unknown correction after reload and replays the same ID", async ({
+  page,
+}) => {
+  const { calls, walletAccount, adjustments } = await connect(page, {
+    loseAdjustmentAck: true,
+  });
+  await page.goto("/wallets");
+  await page.getByRole("button", { name: "Cộng tiền", exact: true }).click();
+  await page.getByLabel("Số tiền (đ)", { exact: true }).fill("2000000");
+  await page
+    .getByLabel("Lý do điều chỉnh", { exact: true })
+    .fill("Kiểm thử mất phản hồi");
+  await page
+    .getByRole("button", { name: "Xác nhận cộng tiền", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Thử lại cùng giao dịch", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Số tiền (đ)", { exact: true })).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Thử lại cùng giao dịch", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(walletAccount.balance).toBe(2100000);
+  expect(adjustments).toHaveLength(1);
+  const writes = calls.filter((c) => c.name === "admin_adjust_wallet");
+  expect(writes).toHaveLength(2);
+  expect(writes[0].params).toEqual(writes[1].params);
+});
+
 test("requires real authentication before showing admin pages", async ({
   page,
 }) => {
@@ -297,127 +426,12 @@ test("price updates carry expected version and conflicts never report success", 
   await expect(page.getByText("Đã lưu bảng giá trên Supabase.")).toHaveCount(0);
 });
 
-test("owner grants staff access by registered email and selected parking lot", async ({
-  page,
-}) => {
-  const { calls } = await connect(page);
-  await page.goto("/staff");
-  await page
-    .getByRole("button", { name: "+ Cấp quyền nhân viên", exact: true })
-    .click();
-  await page.getByLabel("Email nhân viên").fill("STAFF@TEST.INVALID");
-  await page.getByLabel("Ca làm việc").selectOption("afternoon");
-  await page
-    .getByRole("button", { name: "Cấp quyền và phân công", exact: true })
-    .click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect(calls).toEqual([
-    {
-      name: "manage_staff",
-      params: {
-        p_lot_id: lot,
-        p_email: "staff@test.invalid",
-        p_shift: "afternoon",
-        p_active: true,
-      },
-    },
-  ]);
-  await expect(
-    page.getByRole("cell", { name: "staff@test.invalid", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Đã cấp quyền nhân viên và phân công bãi.", { exact: true }),
-  ).toBeVisible();
-});
-
-test("owner revokes access without changing employee or lot identity", async ({
-  page,
-}) => {
-  const { raw, calls } = await connect(page);
-  raw.profiles.push({
-    id: "staff-user",
-    email: "staff@test.invalid",
-    name: "Nhân viên kiểm thử",
-    role: "staff",
-  });
-  raw.memberships.push({
-    user_id: "staff-user",
-    lot_id: lot,
-    shift: "night",
-    active: true,
-  });
-  await page.goto("/staff");
-  await page.getByRole("button", { name: "Phân công", exact: true }).click();
-  await expect(page.getByLabel("Email nhân viên")).toHaveAttribute(
-    "readonly",
-    "",
-  );
-  await expect(page.getByLabel("Bãi phân công")).toBeDisabled();
-  await page.getByLabel("Cho phép làm việc tại bãi này").uncheck();
-  await page
-    .getByRole("button", { name: "Lưu phân công", exact: true })
-    .click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect(calls[0]).toEqual({
-    name: "manage_staff",
-    params: {
-      p_lot_id: lot,
-      p_email: "staff@test.invalid",
-      p_shift: "night",
-      p_active: false,
-    },
-  });
-  await expect(page.getByText("Tạm ngưng", { exact: true })).toBeVisible();
-});
-
-for (const [error, message] of [
-  [
-    "USER_MUST_REGISTER_FIRST",
-    "Nhân viên cần đăng ký tài khoản trong app trước khi phân công.",
-  ],
-  [
-    "USER_EMAIL_NOT_CONFIRMED",
-    "Tài khoản này chưa xác nhận email. Hãy xác nhận email trước khi cấp quyền nhân viên.",
-  ],
-])
-  test(`staff grant keeps form open on ${error}`, async ({ page }) => {
-    await connect(page, { staffError: error });
-    await page.goto("/staff");
-    await page
-      .getByRole("button", { name: "+ Cấp quyền nhân viên", exact: true })
-      .click();
-    await page.getByLabel("Email nhân viên").fill("staff@test.invalid");
-    await page
-      .getByRole("button", { name: "Cấp quyền và phân công", exact: true })
-      .click();
-    await expect(page.getByRole("status")).toContainText(message);
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(
-      page.getByText("Đã cấp quyền nhân viên và phân công bãi.", {
-        exact: true,
-      }),
-    ).toHaveCount(0);
-  });
-
-test("staff grant requires an owned parking lot", async ({ page }) => {
-  const { raw } = await connect(page);
-  raw.lots = [];
-  await page.goto("/staff");
-  await expect(
-    page.getByRole("button", { name: "+ Cấp quyền nhân viên", exact: true }),
-  ).toBeDisabled();
-  await expect(
-    page.getByText(
-      "Tạo bãi đỗ trước để cấp quyền nhân viên làm việc tại bãi đó.",
-    ),
-  ).toBeVisible();
-});
 for (const width of [390, 768, 1440])
   for (const route of [
     "/",
     "/parking",
     "/bookings",
-    "/staff",
+    "/wallets",
     "/reports",
     "/settings",
     "/incidents",
@@ -457,10 +471,10 @@ test("reports supports period switching, lot filtering, receipt modal, CSV expor
   const { raw } = await connect(page);
   const lot2 = "20000000-0000-0000-0000-000000000002";
   raw.profiles.push({
-    id: "staff-collector",
+    id: "historical-collector",
     email: "staff@test.invalid",
     name: "Trần Minh Hà",
-    role: "staff",
+    role: "customer",
   });
   raw.lots.push({
     id: lot2,
@@ -490,7 +504,7 @@ test("reports supports period switching, lot filtering, receipt modal, CSV expor
     },
   );
   raw.bookings[0].vehicle_id = "v-car";
-  raw.payments[0].received_by = "staff-collector";
+  raw.payments[0].received_by = "historical-collector";
   raw.payments[0].method = "cash";
 
   // Same-day motorcycle checkout at lot2
@@ -515,7 +529,7 @@ test("reports supports period switching, lot filtering, receipt modal, CSV expor
     booking_id: "60000000-0000-0000-0000-000000000002",
     amount: 10000,
     method: "cash",
-    received_by: "staff-collector",
+    received_by: "historical-collector",
     paid_at: `${today}T09:00:00`,
   });
 
@@ -541,7 +555,7 @@ test("reports supports period switching, lot filtering, receipt modal, CSV expor
     booking_id: "60000000-0000-0000-0000-000000000003",
     amount: 45000,
     method: "cash",
-    received_by: "staff-collector",
+    received_by: "historical-collector",
     paid_at: "2026-09-15T13:00:00",
   });
 
@@ -624,7 +638,7 @@ test("reports supports period switching, lot filtering, receipt modal, CSV expor
     booking_id: "60000000-0000-0000-0000-000000000004",
     amount: 50000,
     method: "cash",
-    received_by: "staff-collector",
+    received_by: "historical-collector",
     paid_at: `${today}T13:00:00`,
   });
   await page.getByRole("button", { name: "Làm mới" }).click();
@@ -634,22 +648,10 @@ test("reports supports period switching, lot filtering, receipt modal, CSV expor
   await expect(page.getByText("43A88888")).toBeVisible();
 });
 
-test("owner requests a move, assigns active staff, resolves and sees processing history", async ({
+test("owner requests a move, handles the incident and sees processing history", async ({
   page,
 }) => {
   const { raw, calls } = await connect(page);
-  raw.profiles.push({
-    id: "staff-user",
-    name: "Nhân viên ca sáng",
-    email: "staff@test.invalid",
-    role: "staff",
-  });
-  raw.memberships.push({
-    lot_id: lot,
-    user_id: "staff-user",
-    shift: "morning",
-    active: true,
-  });
   raw.reports.push({
     id: "report-one",
     lot_id: lot,
@@ -679,7 +681,9 @@ test("owner requests a move, assigns active staff, resolves and sees processing 
         () => document.documentElement.scrollWidth > window.innerWidth + 1,
       ),
     ).toBe(false);
-    await page.getByRole("button", {name:"Yêu cầu chủ xe di chuyển"}).click({trial:true});
+    await page
+      .getByRole("button", { name: "Yêu cầu chủ xe di chuyển" })
+      .click({ trial: true });
     await page.screenshot({
       animations: "disabled",
       path: `../.smartpark/ui-review/incidents-${width}.png`,
@@ -690,9 +694,9 @@ test("owner requests a move, assigns active staff, resolves and sees processing 
   await expect(
     page.getByRole("heading", { name: "43A12345 · Đã yêu cầu di chuyển" }),
   ).toBeVisible();
-  await page.getByLabel("Giao nhân viên 43A12345").selectOption("staff-user");
+  await page.getByRole("button", { name: "Bắt đầu xử lý" }).click();
   await expect(
-    page.getByRole("heading", { name: "43A12345 · Đã giao nhân viên" }),
+    page.getByRole("heading", { name: "43A12345 · Đang xử lý" }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Đã giải quyết", exact: true })
@@ -702,12 +706,12 @@ test("owner requests a move, assigns active staff, resolves and sees processing 
   ).toBeVisible();
   await page.getByText("Lịch sử xử lý", { exact: true }).click();
   await expect(
-    page.getByRole("listitem").filter({ hasText: "Đã giao nhân viên" }),
+    page.getByRole("listitem").filter({ hasText: "Đang xử lý" }),
   ).toBeVisible();
   const commands = calls.filter((c) => c.name === "apply_operation");
   expect(commands.map((c) => c.params.p_kind)).toEqual([
     "report.request_move",
-    "report.assign",
+    "report.progress",
     "report.progress",
   ]);
   expect(commands.map((c) => c.params.p_payload.expected_version)).toEqual([

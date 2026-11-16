@@ -131,21 +131,6 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
     };
   });
 
-  const staff = (raw.memberships ?? [])
-    .filter((s) => lotById.has(String(s.lot_id)))
-    .map((s) => {
-      const p = profileById.get(String(s.user_id ?? ""));
-      return {
-        id: `${s.lot_id}:${s.user_id}`,
-        userId: String(s.user_id),
-        lotId: String(s.lot_id),
-        name: String(p?.name ?? ""),
-        email: String(p?.email ?? ""),
-        shift: s.shift as "morning" | "afternoon" | "night",
-        active: s.active === true,
-      };
-    });
-
   const pricing = Object.fromEntries(
     own.map((l) => [
       String(l.id),
@@ -219,7 +204,6 @@ function normalize(raw: Record<string, Row[]>, userId: string): AdminData {
     reports: (raw.reports ?? []).filter((r) => lotById.has(String(r.lot_id))),
     reportEvents: raw.report_events ?? [],
     bookings: normalizedBookings,
-    staff,
     pricing,
     payments,
     vehicles,
@@ -328,7 +312,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       "parking_lots",
       "parking_reports",
       "report_events",
-      "lot_staff",
+      "wallet_adjustments",
       "bookings",
       "vehicles",
       "payments",
@@ -497,19 +481,13 @@ function message(e: unknown) {
         : "mức mới xung đột với vé còn hiệu lực.")
     );
   if (text.includes("PARKED_OWNER_NOT_FOUND"))
-    return "Chưa tìm thấy xe đang gửi với biển số này. Hãy giao nhân viên kiểm tra hiện trường.";
-  if (text.includes("STAFF_NOT_ASSIGNED"))
-    return "Nhân viên chưa được phân công hoặc đã ngừng làm việc tại bãi này.";
+    return "Chưa tìm thấy xe đang gửi với biển số này. Vui lòng kiểm tra lại biển số và bãi.";
   if (text.includes("REPORT_NOT_FOUND"))
     return "Không tìm thấy báo cáo được cấp quyền.";
   if (text.includes("INVALID_STATE"))
     return "Trạng thái báo cáo hoặc vé đã thay đổi. Hãy tải lại để kiểm tra.";
   if (text.includes("VERSION_CONFLICT"))
     return "Dữ liệu đã thay đổi trên thiết bị khác. Tải lại trước khi sửa.";
-  if (text.includes("USER_MUST_REGISTER_FIRST"))
-    return "Nhân viên cần đăng ký tài khoản trong app trước khi phân công.";
-  if (text.includes("USER_EMAIL_NOT_CONFIRMED"))
-    return "Tài khoản này chưa xác nhận email. Hãy xác nhận email trước khi cấp quyền nhân viên.";
   if (text.includes("FORBIDDEN"))
     return "Bạn không có quyền thực hiện thao tác tại bãi này.";
   return text;

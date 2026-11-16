@@ -8,13 +8,7 @@ import {
   FrameContext,
   UiIcon,
 } from "../components/ui";
-import {
-  formatDateTime,
-  initials,
-  localDate,
-  money,
-  shortLot,
-} from "../data/models";
+import { formatDateTime, initials, localDate, money } from "../data/models";
 import { useAdmin } from "../data/store";
 
 export const nav = [
@@ -32,7 +26,12 @@ export const nav = [
     frame: "30:177",
   },
   { path: "/bookings", label: "Đặt chỗ", icon: "IconTicket", frame: "30:382" },
-  { path: "/staff", label: "Nhân viên", icon: "IconUsers", frame: "30:553" },
+  {
+    path: "/wallets",
+    label: "Số dư tài khoản",
+    icon: "IconUsers",
+    frame: "30:553",
+  },
   {
     path: "/reports",
     label: "Báo cáo doanh thu",
@@ -108,18 +107,6 @@ export function Layout() {
             kind: "Đặt chỗ",
             path: "/bookings?q=" + encodeURIComponent(b.plate || b.id),
           })),
-        ...data.staff
-          .filter((s) =>
-            `${s.name} ${s.email} ${shortLot(data.lots.find((l) => l.id === s.lotId))}`
-              .toLocaleLowerCase("vi")
-              .includes(q),
-          )
-          .slice(0, 3)
-          .map((s) => ({
-            label: `${s.name || s.email}`,
-            kind: "Nhân viên",
-            path: "/staff?q=" + encodeURIComponent(s.email || s.name),
-          })),
         ...data.payments
           .filter((p) =>
             `${p.plate} ${p.customerName} ${p.lotName} ${p.id}`
@@ -191,7 +178,8 @@ export function Layout() {
                 <strong>Trợ giúp quản lý</strong>
               </span>
               <small>
-                Đồng bộ thời gian thực với ứng dụng Khách hàng và Nhân viên.
+                Đồng bộ thời gian thực với ứng dụng Khách hàng và máy quét tự
+                động.
               </small>
             </button>
             <button
@@ -221,7 +209,7 @@ export function Layout() {
               <Asset name="IconSearch" />
               <input
                 aria-label="Tìm kiếm toàn hệ thống"
-                placeholder="Tìm bãi đỗ, biển số, nhân viên, giao dịch..."
+                placeholder="Tìm bãi đỗ, biển số, giao dịch..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -347,11 +335,10 @@ export function Layout() {
                 </p>
               </div>
               <div className="help-item">
-                <strong>Đồng bộ với Nhân viên & Doanh thu</strong>
+                <strong>Máy quét tự động & Doanh thu</strong>
                 <p>
-                  Nhân viên check-in/check-out và xác nhận thu tiền mặt trên ứng
-                  dụng Nhân viên. Khoản thu sẽ xuất hiện ngay tại mục Báo cáo
-                  doanh thu và Tổng quan.
+                  Camera tự ghi nhận xe vào/ra. Máy chủ tính phí và trừ số dư;
+                  khoản thu xuất hiện tại Báo cáo doanh thu và Tổng quan.
                 </p>
               </div>
             </div>
@@ -403,8 +390,8 @@ export function Layout() {
                     <Badge tone="amber">Cần theo dõi</Badge>
                   </div>
                   <p>
-                    Nhân viên sẽ thu thêm phí quá giờ khi khách check-out tại
-                    cổng.
+                    Phần phí chưa thanh toán được trừ từ số dư khi xe ra qua máy
+                    quét.
                   </p>
                 </li>
               )}
@@ -470,9 +457,9 @@ export function Layout() {
             </div>
             <p className="account-note">
               Phạm vi quản lý: {data.lots.length} bãi đỗ ·{" "}
-              {data.lots.reduce((sum, l) => sum + l.capacity, 0)} chỗ đỗ ·{" "}
-              {data.staff.filter((s) => s.active).length} phân công nhân viên
-              đang hoạt động. Dữ liệu chỉ thuộc các bãi do tài khoản này sở hữu.
+              {data.lots.reduce((sum, l) => sum + l.capacity, 0)} chỗ đỗ · Máy
+              quét hoạt động tự động. Dữ liệu chỉ thuộc các bãi do tài khoản này
+              sở hữu.
             </p>
           </Dialog>
         )}

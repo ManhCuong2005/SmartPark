@@ -433,6 +433,7 @@ void main() {
       expect(state.remainingCapacity, 0);
       expect(state.vehicleConflict, isNull);
       expect(find.text('Vé điện tử SmartPark'), findsNothing);
+      await tester.ensureVisible(find.text('Đổi thời gian'));
       await tester.tap(find.text('Đổi thời gian'));
       await tester.pumpAndSettle();
       expect(find.text('Chọn thời gian'), findsOneWidget);

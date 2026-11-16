@@ -3,7 +3,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class TestPayosRepository extends PayosTopupRepository {
   TestPayosRepository()
-    : super(SupabaseClient('https://payos.test.invalid', 'test-public-key'));
+    : super(
+        SupabaseClient(
+          'https://payos.test.invalid',
+          'test-public-key',
+          authOptions: const AuthClientOptions(autoRefreshToken: false),
+        ),
+      );
 
   @override
   Future<int> balance() async => 500000;

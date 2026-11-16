@@ -150,7 +150,7 @@ export function OverviewPage() {
           <div>
             <h2>Đặt chỗ gần đây</h2>
             <p className="panel-sub">
-              Đồng bộ thời gian thực từ ứng dụng Khách hàng & Nhân viên
+              Đồng bộ thời gian thực từ ứng dụng Khách hàng & Máy quét tự động
             </p>
           </div>
           <Link to="/bookings">Xem tất cả →</Link>

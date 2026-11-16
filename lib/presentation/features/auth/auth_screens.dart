@@ -377,7 +377,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     Navigator.pushNamedAndRemoveUntil(
       context,
-      widget.staff ? '/staff/home' : '/home',
+      widget.staff ? '/staff/scan' : '/home',
       (r) => false,
     );
   }
@@ -428,7 +428,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                               const SizedBox(width: 15),
                               const Txt(
-                                'SMARTPARK / STAFF',
+                                'SMARTPARK / CAMERA',
                                 size: 12,
                                 color: Color(0xFFBDD0EB),
                                 weight: FontWeight.w600,
@@ -445,7 +445,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           const SizedBox(height: 17),
                           const Txt(
-                            'Dành riêng cho nhân viên bãi đỗ.',
+                            'Máy quét tự động dành cho quản trị bãi.',
                             size: 13,
                             color: Color(0xFFB3C6DE),
                           ),
@@ -499,7 +499,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 children: [
                   Txt(
                     staff
-                        ? 'Đăng nhập ca làm việc'
+                        ? 'Khởi động máy quét'
                         : reg
                         ? 'Tạo tài khoản\nSmartPark'
                         : 'Chào mừng\ntrở lại 👋',
@@ -510,7 +510,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   const SizedBox(height: 12),
                   Txt(
                     staff
-                        ? 'Sử dụng tài khoản do quản lý cấp.'
+                        ? 'Sử dụng tài khoản quản trị viên của bãi.'
                         : reg
                         ? 'Thêm một bước tới trải nghiệm đỗ xe dễ dàng.'
                         : 'Đăng nhập để tiếp tục với SmartPark.',
@@ -531,11 +531,11 @@ class _AuthScreenState extends State<AuthScreen> {
                   ],
                   field(
                     staff
-                        ? 'Email nhân viên'
+                        ? 'Email quản trị viên'
                         : reg
                         ? 'Email'
                         : 'Địa chỉ email',
-                    staff ? 'staff@smartpark.vn' : 'email@example.com',
+                    staff ? 'admin@smartpark.vn' : 'email@example.com',
                     'IconMail',
                     _email,
                     type: TextInputType.emailAddress,

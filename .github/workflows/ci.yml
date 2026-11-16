@@ -2,7 +2,7 @@ name: SmartPark checks
 on:
   pull_request:
   push:
-    branches: [main, master]
+    branches: [main, master, release/booking-fix-v1.2.1]
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,10 +32,11 @@ jobs:
         with:
           flutter-version: "3.29.0"
           cache: true
+      - uses: android-actions/setup-android@v4
       - run: sdkmanager "platforms;android-36" "ndk;27.0.12077973"
       - run: flutter pub get
       - run: flutter build apk --debug --flavor customer -t lib/main.dart
-      - run: flutter build apk --debug --flavor staff -t lib/main_staff.dart
+      - run: flutter build apk --debug --flavor staff -t lib/main_kiosk.dart
   admin:
     runs-on: ubuntu-latest
     defaults:

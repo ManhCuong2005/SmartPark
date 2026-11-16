@@ -16,8 +16,8 @@ let stopping = false;
 const services = [
   { name: 'Customer', port: 8081, cwd: root,
     command: 'flutter.bat run -d web-server --web-hostname 127.0.0.1 --web-port 8081 -t lib/main.dart' },
-  { name: 'Staff', port: 8082, cwd: root,
-    command: 'flutter.bat run -d web-server --web-hostname 127.0.0.1 --web-port 8082 -t lib/main_staff.dart' },
+  { name: 'Camera', port: 8082, cwd: root,
+    command: 'flutter.bat run -d web-server --web-hostname 127.0.0.1 --web-port 8082 -t lib/main_kiosk.dart' },
   { name: 'Admin', port: 5173, cwd: path.join(root, 'admin-web'),
     command: 'npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort' },
 ];

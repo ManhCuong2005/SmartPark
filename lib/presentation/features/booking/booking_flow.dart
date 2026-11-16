@@ -286,7 +286,7 @@ class TimeSelectionScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'Thanh toán trước theo khoảng thời gian đã đặt, tối thiểu 1 giờ. Vé chưa check-in sẽ hết hiệu lực khi đến giờ ra dự kiến.',
+                  'Chọn trả trước hoặc trả sau với số dư lớn hơn 100.000đ. Phí tối thiểu 1 giờ; vé chưa vào bãi hết hiệu lực khi đến giờ ra dự kiến.',
                 ),
               ],
             ),

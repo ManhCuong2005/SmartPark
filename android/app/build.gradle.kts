@@ -55,7 +55,7 @@ android {
         create("staff") {
             dimension = "role"
             applicationIdSuffix = ".staff"
-            manifestPlaceholders["appName"] = "SmartPark Staff"
+            manifestPlaceholders["appName"] = "SmartPark Camera"
         }
     }
 

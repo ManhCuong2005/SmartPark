@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smartpark/app/providers.dart';
 import 'package:smartpark/app/smartpark_app.dart';
 import 'package:smartpark/domain/parking_rules.dart';
+import 'package:smartpark/domain/plate_scanning.dart';
 import 'package:smartpark/domain/plate_recognition_service.dart';
 import 'package:smartpark/presentation/features/staff/operational_screens.dart';
 import 'package:smartpark/presentation/park_controller.dart';
@@ -270,55 +270,37 @@ void main() {
     expect(haptics, hasLength(1));
   });
 
-  testWidgets('Plate feedback follows successful ticket validation only', (
-    tester,
-  ) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
-    final state = ParkController(
-      TestRepository(staff: true),
-      monitorConnectivity: false,
-    );
-    addTearDown(state.dispose);
-    await state.initialize();
-    final haptics = <MethodCall>[];
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (call) async {
-        if (call.method == 'HapticFeedback.vibrate') haptics.add(call);
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      ),
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: StaffScannerScreen(repository: state),
-        routes: {
-          '/staff/confirm': (_) => const Scaffold(body: Text('Vé hợp lệ')),
-        },
-      ),
-    );
-    final dynamic scannerState = tester.state(find.byType(StaffScannerScreen));
-    final invalid = scannerState.open('invalid') as Future<void>;
-    await tester.pumpAndSettle();
-    await invalid;
-    expect(haptics, isEmpty);
-    final ticket = state.bookings.single;
-    final valid = scannerState.open(ticket['plate'] as String) as Future<void>;
-    await tester.pumpAndSettle();
-    expect(find.text('Vé hợp lệ'), findsOneWidget);
-    expect(haptics, hasLength(1));
-    tester.state<NavigatorState>(find.byType(Navigator)).pop();
-    await tester.pumpAndSettle();
-    await valid;
-    await tester.pumpWidget(const SizedBox.shrink());
-    debugDefaultTargetPlatformOverride = null;
-  });
+  test(
+    'automatic scanning rejects invalid plates and unassigned lots before contacting backend',
+    () async {
+      final backend = TestRepository(staff: true);
+      final state = ParkController(backend, monitorConnectivity: false);
+      addTearDown(state.dispose);
+      await state.initialize();
+      final before = backend.executions;
+      await expectLater(
+        state.scanPlate(
+          'operation',
+          state.staffLots.single.id,
+          'invalid',
+          sessionId: 'session',
+          direction: ScanDirection.entry,
+        ),
+        throwsA(isA<ParkFailure>()),
+      );
+      await expectLater(
+        state.scanPlate(
+          'operation',
+          'another-lot',
+          '43A12345',
+          sessionId: 'session',
+          direction: ScanDirection.entry,
+        ),
+        throwsA(isA<ParkFailure>()),
+      );
+      expect(backend.executions, before);
+    },
+  );
 
   for (final width in [320.0, 390.0]) {
     for (final route in ['/booking/time', '/booking/capacity']) {

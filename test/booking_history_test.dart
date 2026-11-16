@@ -272,7 +272,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(state.selectedBookingId, 'active');
     expect(find.text('Vé điện tử SmartPark'), findsOneWidget);
-    expect(find.textContaining('Nhân viên đối chiếu biển số'), findsOneWidget);
+    expect(find.textContaining('Camera tự quét biển số'), findsOneWidget);
   });
 
   testWidgets('long archive builds visible cards lazily', (tester) async {

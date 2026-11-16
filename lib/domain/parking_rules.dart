@@ -44,22 +44,25 @@ void validateReservation(DateTime start, DateTime end, DateTime now) {
   }
 }
 
-int checkoutAmount(Json booking, DateTime exit) =>
-    booking['prepaid'] == true
-        ? 0
-        : calculateFee(
-          DateTime.parse(booking['checked_in_at'] as String),
-          exit,
-          booking['hourly_rate'] as int,
-          booking['free_minutes'] as int,
-        );
+int checkoutAmount(Json booking, DateTime exit) {
+  if (booking['prepaid'] == true) {
+    final paidUntil = DateTime.parse(
+      (booking['paid_until'] ?? booking['ends_at']) as String,
+    );
+    return exit.isAfter(paidUntil)
+        ? calculateFee(paidUntil, exit, booking['hourly_rate'] as int, 0)
+        : 0;
+  }
+  return calculateFee(
+    DateTime.parse(booking['checked_in_at'] as String),
+    exit,
+    booking['hourly_rate'] as int,
+    0,
+  );
+}
 
-int extensionFee(Json booking, DateTime newEnd) => calculateFee(
-  DateTime.parse(booking['ends_at'] as String),
-  newEnd,
-  booking['hourly_rate'] as int,
-  0,
-);
+int extensionFee(Json booking, DateTime newEnd) =>
+    checkoutAmount(booking, newEnd);
 
 DateTime noShowDeadline(DateTime scheduledEnd) => scheduledEnd;
 
@@ -95,6 +98,16 @@ Duration retryDelay(int attempts) =>
 
 String backendMessage(String code) {
   const errors = {
+    'KIOSK_SESSION_REQUIRED':
+        'Cần chọn bãi và chiều camera trên phiên bản mới.',
+    'KIOSK_DIRECTION_MISMATCH': 'Chiều quét không khớp quyền của phiên camera.',
+    'ENTRY_REQUIRED': 'Xe chưa được ghi nhận vào bãi. Vui lòng kiểm tra lại.',
+    'PAY_LATER_BALANCE_REQUIRED':
+        'Thanh toán sau cần số dư lớn hơn 100.000đ. Vui lòng nạp thêm hoặc chọn thanh toán ngay.',
+    'OVERDUE_INSUFFICIENT_BALANCE':
+        'Bạn đã gửi quá giờ, và số dư không đủ, vui lòng nạp thêm tiền.',
+    'PAYMENT_REVIEW_REQUIRED':
+        'Chưa xác định được thời gian đã thanh toán. Vui lòng liên hệ hỗ trợ.',
     'BOOKING_PAYMENT_SCHEMA_REQUIRED':
         'Máy chủ chưa được cập nhật tính năng thanh toán vé. Vui lòng liên hệ quản trị viên.',
     'UNKNOWN_OPERATION':

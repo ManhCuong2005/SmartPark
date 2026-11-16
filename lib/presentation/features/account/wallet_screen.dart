@@ -29,6 +29,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onResume: _refresh);
+    ref.listenManual(parkControllerProvider, (_, __) => _refresh());
     _refresh();
   }
 
@@ -288,10 +289,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
             onPressed: _busy ? null : _create,
             style: FilledButton.styleFrom(
               minimumSize: const Size(0, 54),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 16,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -470,13 +468,20 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
   }
 }
 
-final walletBalanceProvider = FutureProvider.autoDispose.family<int, String>(
-  (ref, _) {
-    ref.watch(parkControllerProvider.select((state) => state.snapshot
-        .rows('payments').map((payment) => payment['id']).join(',')));
-    return ref.watch(payosTopupRepositoryProvider).balance();
-  },
-);
+final walletBalanceProvider = FutureProvider.autoDispose.family<int, String>((
+  ref,
+  _,
+) {
+  ref.watch(
+    parkControllerProvider.select(
+      (state) => state.snapshot
+          .rows('payments')
+          .map((payment) => payment['id'])
+          .join(','),
+    ),
+  );
+  return ref.watch(payosTopupRepositoryProvider).balance();
+});
 
 class ProfileWalletCard extends ConsumerWidget {
   const ProfileWalletCard({super.key, required this.userId});

@@ -34,7 +34,10 @@ type PeriodMode = "today" | "7days" | "month" | "6months" | "all";
 
 function paymentMethodLabel(method: string): string {
   const labels: Record<string, string> = {
-    cash: "Tiền mặt", wallet: "Số dư gửi xe", qr: "QR payOS", wallet_refund: "Hoàn vào số dư",
+    cash: "Tiền mặt",
+    wallet: "Số dư gửi xe",
+    qr: "QR payOS",
+    wallet_refund: "Hoàn vào số dư",
   };
   return labels[method] ?? method;
 }
@@ -292,8 +295,14 @@ export function ReportsPage() {
   const motoPayments = paid.filter((p) => p.vehicleKind === "motorcycle");
   const carRevenue = carPayments.reduce((s, p) => s + p.amount, 0);
   const motoRevenue = motoPayments.reduce((s, p) => s + p.amount, 0);
-  const carPct = revenue > 0 ? Math.max(0, Math.min(100, Math.round((carRevenue / revenue) * 100))) : 0;
-  const motoPct = revenue > 0 ? Math.max(0, Math.min(100, Math.round((motoRevenue / revenue) * 100))) : 0;
+  const carPct =
+    revenue > 0
+      ? Math.max(0, Math.min(100, Math.round((carRevenue / revenue) * 100)))
+      : 0;
+  const motoPct =
+    revenue > 0
+      ? Math.max(0, Math.min(100, Math.round((motoRevenue / revenue) * 100)))
+      : 0;
   const unknownPayments = paid.filter((p) => p.vehicleKind === "unknown");
 
   const collectorSummary = useMemo(() => {
@@ -304,7 +313,7 @@ export function ReportsPage() {
     for (const p of paid) {
       const key = p.receivedBy || "unknown";
       const cur = map.get(key) ?? {
-        name: p.receivedByName || "Nhân viên bãi",
+        name: p.receivedByName || "Máy quét",
         count: 0,
         amount: 0,
       };
@@ -392,7 +401,7 @@ export function ReportsPage() {
         "Check-in",
         "Check-out",
         "Thời lượng",
-        "Nhân viên thu",
+        "Người ghi nhận",
         "Phương thức",
         "Ngày thanh toán",
         "Số tiền (VND)",
@@ -428,7 +437,7 @@ export function ReportsPage() {
     <>
       <PageHeading
         title="Báo cáo & doanh thu"
-        subtitle="Tổng hợp thời gian thực từ khoản thu tiền mặt do nhân viên xác nhận check-out."
+        subtitle="Tổng hợp khoản thanh toán vé và phí gửi xe tự động theo thời gian thực."
         action={
           <div className="heading-action-group">
             <Button secondary disabled={syncing} onClick={() => void refresh()}>
@@ -540,7 +549,7 @@ export function ReportsPage() {
               <p>
                 {latestScopedPayment
                   ? `Giao dịch gần nhất được ghi nhận ngày ${formatDateTime(latestScopedPayment.paidAt)} (${money(latestScopedPayment.amount)}). `
-                  : "Doanh thu sẽ tự động đồng bộ ngay khi nhân viên thu tiền và check-out trên ứng dụng Staff. "}
+                  : "Doanh thu tự cập nhật khi thanh toán vé hoặc máy quét ghi nhận xe ra. "}
                 {activeParked.length > 0 || confirmedBookings.length > 0
                   ? `Hiện có ${activeParked.length} xe đang đỗ và ${confirmedBookings.length} vé chờ vào bãi.`
                   : ""}
@@ -683,14 +692,22 @@ export function ReportsPage() {
               <strong>{money(revenue)}</strong>
             </div>
             <p>
-              {paid.length} giao dịch đã xác nhận · tiền mặt, QR và số dư gửi xe.
+              {paid.length} giao dịch đã xác nhận · tiền mặt, QR và số dư gửi
+              xe.
             </p>
-            {(["cash", "qr", "wallet", "wallet_refund"] as const).map((method) => {
-              const total = paid.filter((p) => p.method === method).reduce((sum, p) => sum + p.amount, 0);
-              return total !== 0 ? <div className="breakdown-head" key={method}>
-                <span>{paymentMethodLabel(method)}</span><strong>{money(total)}</strong>
-              </div> : null;
-            })}
+            {(["cash", "qr", "wallet", "wallet_refund"] as const).map(
+              (method) => {
+                const total = paid
+                  .filter((p) => p.method === method)
+                  .reduce((sum, p) => sum + p.amount, 0);
+                return total !== 0 ? (
+                  <div className="breakdown-head" key={method}>
+                    <span>{paymentMethodLabel(method)}</span>
+                    <strong>{money(total)}</strong>
+                  </div>
+                ) : null;
+              },
+            )}
           </div>
 
           <div className="vehicle-breakdown">
@@ -730,7 +747,7 @@ export function ReportsPage() {
           )}
           {collectorSummary.length > 0 && (
             <div className="collector-list">
-              <span className="collector-title">Nhân viên thu gần đây</span>
+              <span className="collector-title">Người ghi nhận gần đây</span>
               {collectorSummary.map((c) => (
                 <div className="collector-row" key={c.name}>
                   <span>
@@ -840,7 +857,7 @@ export function ReportsPage() {
                     <th>BÃI ĐỖ</th>
                     <th>BIỂN SỐ / XE</th>
                     <th>KHÁCH HÀNG</th>
-                    <th>NHÂN VIÊN THU</th>
+                    <th>NGƯỜI GHI NHẬN</th>
                     <th>SỐ TIỀN</th>
                     <th>BIÊN LAI</th>
                   </tr>
@@ -864,8 +881,10 @@ export function ReportsPage() {
                       </td>
                       <td>{p.customerName || "Khách đặt chỗ"}</td>
                       <td>
-                        <span>{p.receivedByName || "Nhân viên"}</span>
-                        <small className="cell-sub">{paymentMethodLabel(p.method)}</small>
+                        <span>{p.receivedByName || "Máy quét"}</span>
+                        <small className="cell-sub">
+                          {paymentMethodLabel(p.method)}
+                        </small>
                       </td>
                       <td>
                         <strong className="money-positive">
@@ -900,7 +919,7 @@ export function ReportsPage() {
             hint={
               normalizedQuery
                 ? "Thử xóa từ khóa tìm kiếm hoặc chọn kỳ báo cáo rộng hơn."
-                : "Các khoản thu sẽ tự động hiển thị sau khi nhân viên xác nhận check-out."
+                : "Các khoản thu tự hiển thị sau khi thanh toán được máy chủ xác nhận."
             }
           />
         )}
@@ -1048,7 +1067,7 @@ export function SettingsPage() {
             <h2>Bảo mật & đồng bộ hệ thống</h2>
             <p className="panel-sub">
               Quy tắc thực thi trực tiếp trên Supabase Cloud cho cả Web Admin,
-              App Khách hàng và App Nhân viên
+              App Khách hàng và Máy quét tự động
             </p>
           </div>
         </div>
@@ -1061,8 +1080,8 @@ export function SettingsPage() {
               <h3>Phân quyền Row-Level Security</h3>
               <p>
                 Chỉ tài khoản Chủ bãi sở hữu mới có quyền chỉnh giá vé, khóa bãi
-                hoặc cấp quyền nhân viên. Nhân viên chỉ thao tác trên bãi được
-                phân công.
+                và điều chỉnh số dư tài khoản. Máy quét sử dụng quyền quản trị
+                của chủ bãi.
               </p>
             </div>
           </div>
@@ -1168,7 +1187,7 @@ function PricingEditor({
             </strong>
             <p>
               Thu từ phút đầu, tối thiểu 1 giờ; các giờ tiếp theo làm tròn lên.
-              Chỉ ghi doanh thu sau khi nhân viên xác nhận đã thu tiền và xe ra.
+              Ghi nhận doanh thu khi thanh toán được máy chủ xác nhận.
             </p>
           </div>
         </div>
@@ -1206,8 +1225,8 @@ function PricingEditor({
           <div>
             <strong>Check-out & thu tiền mặt tại cổng</strong>
             <p>
-              Nhân viên nhận diện và xác nhận biển số trên app Staff, hệ thống
-              chốt phí theo thời gian gửi thực tế và tạo phiếu thu ngay.
+              Camera tự nhận diện biển số; máy chủ tính phí, trừ số dư và ghi
+              nhận giao dịch khi xe ra.
             </p>
           </div>
           <Badge tone="green">Bắt buộc</Badge>

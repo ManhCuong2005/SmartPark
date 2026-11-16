@@ -10,7 +10,7 @@ import '../presentation/features/booking/booking_screens.dart';
 import '../presentation/features/tickets/ticket_screens.dart';
 import '../presentation/features/account/account_screens.dart';
 import '../presentation/features/account/wallet_screen.dart';
-import '../presentation/features/staff/staff_screens.dart';
+import '../presentation/features/staff/automatic_scanner_screen.dart';
 
 class SmartParkApp extends ConsumerWidget {
   const SmartParkApp({super.key, this.staff = false, this.initialRoute});
@@ -66,10 +66,12 @@ class SmartParkApp extends ConsumerWidget {
                     ),
                   ),
                 ),
-              const PageHeading('Chưa được phân công'),
+              const PageHeading('Cần quyền quản trị'),
               const Padding(
                 padding: EdgeInsets.all(24),
-                child: Text('Chủ bãi cần cấp quyền cho tài khoản này.'),
+                child: Text(
+                  'Chỉ tài khoản quản trị bãi được khởi động máy quét.',
+                ),
               ),
               TextButton(
                 onPressed: () => runAction(context, repository.signOut),
@@ -84,7 +86,7 @@ class SmartParkApp extends ConsumerWidget {
 
     return MaterialApp(
       navigatorKey: navigatorKey,
-      title: staff ? 'SmartPark Staff' : 'SmartPark',
+      title: staff ? 'SmartPark Camera' : 'SmartPark',
       debugShowCheckedModeBanner: false,
       theme: parkTheme(),
       darkTheme: parkTheme(dark: true),
@@ -92,7 +94,7 @@ class SmartParkApp extends ConsumerWidget {
       initialRoute:
           initialRoute ??
           (repository.signedIn
-              ? (staff ? '/staff/home' : '/home')
+              ? (staff ? '/staff/scan' : '/home')
               : (staff ? '/staff/login' : '/')),
       builder:
           (context, child) => Column(
@@ -169,26 +171,13 @@ class SmartParkApp extends ConsumerWidget {
         '/reports': (_) => guard(ParkingReportsScreen(repository: repository)),
         '/sync': (_) => guard(SyncQueueScreen(repository: repository)),
         '/staff/home':
-            (_) =>
-                guard(StaffHomeScreen(repository: repository), staffOnly: true),
-        '/staff/scan':
             (_) => guard(
               StaffScannerScreen(repository: repository),
               staffOnly: true,
             ),
-        '/staff/confirm':
+        '/staff/scan':
             (_) => guard(
-              StaffConfirmationScreen(repository: repository),
-              staffOnly: true,
-            ),
-        '/staff/capacity':
-            (_) => guard(
-              StaffCapacityScreen(repository: repository),
-              staffOnly: true,
-            ),
-        '/staff/account':
-            (_) => guard(
-              StaffAccountScreen(repository: repository),
+              StaffScannerScreen(repository: repository),
               staffOnly: true,
             ),
       }.map(

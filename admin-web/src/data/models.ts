@@ -55,16 +55,6 @@ export type Booking = {
   checkedOut: string | null;
 };
 
-export type Staff = {
-  id: string;
-  userId: string;
-  name: string;
-  email: string;
-  lotId: string;
-  shift: "morning" | "afternoon" | "night";
-  active: boolean;
-};
-
 export type Pricing = {
   car: number;
   motorcycle: number;
@@ -114,7 +104,6 @@ export type AdminData = {
   reportEvents: Row[];
   lots: Lot[];
   bookings: Booking[];
-  staff: Staff[];
   pricing: Record<string, Pricing>;
   payments: Payment[];
   vehicles: VehicleInfo[];
@@ -126,7 +115,6 @@ export const emptyData: AdminData = {
   reportEvents: [],
   lots: [],
   bookings: [],
-  staff: [],
   pricing: {},
   payments: [],
   vehicles: [],
@@ -149,21 +137,6 @@ export function compactMoney(n: number): string {
 export const pad = (n: number) => String(n).padStart(2, "0");
 
 export const shortLot = (lot?: Lot) => lot?.name ?? "Chưa phân công";
-
-export const shifts = {
-  morning: "Ca sáng",
-  afternoon: "Ca chiều",
-  night: "Ca đêm",
-};
-
-export const shiftTimes: Record<
-  keyof typeof shifts,
-  { label: string; time: string; color: string }
-> = {
-  morning: { label: "Ca sáng", time: "06:00 – 14:00", color: "#315fea" },
-  afternoon: { label: "Ca chiều", time: "14:00 – 22:00", color: "#17b29a" },
-  night: { label: "Ca đêm", time: "22:00 – 06:00", color: "#7b61da" },
-};
 
 export const localDate = (value: string | Date = new Date()) => {
   const d = value instanceof Date ? value : new Date(value);

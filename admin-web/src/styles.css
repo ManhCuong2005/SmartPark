@@ -958,8 +958,7 @@ td small {
   padding-bottom: 4px;
 }
 .parking-table-panel > .table-scroll,
-.booking-table-panel > .table-scroll,
-.staff-table-panel > .table-scroll {
+.booking-table-panel > .table-scroll {
   margin: 0 16px;
   max-width: calc(100% - 32px);
 }
@@ -1095,86 +1094,6 @@ td small {
 .bookings-table .badge {
   min-width: 135px;
 }
-.staff-grid {
-  display: grid;
-  grid-template-columns: 754fr 343fr;
-  gap: 17px;
-  margin-top: 24px;
-}
-.staff-table-panel,
-.shift-panel {
-  min-height: 491px;
-}
-.staff-table-panel .search-field {
-  width: 278px;
-}
-.staff-table th:first-child {
-  width: 35%;
-}
-.staff-table th {
-  height: 41px;
-}
-.staff-table td {
-  height: 63px;
-}
-.staff-table .badge {
-  min-width: 106px;
-}
-.staff-initials {
-  height: 40px;
-  width: 40px;
-  border-radius: 12px;
-  background: var(--pale);
-  color: var(--blue);
-  font-size: 11px;
-  font-weight: 600;
-  display: grid;
-  place-items: center;
-}
-.staff-initials.green {
-  background: var(--green);
-  color: #009a74;
-}
-.shift-panel {
-  padding: 22px 20px;
-  display: flex;
-  flex-direction: column;
-}
-.shift-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin: 26px -4px 0;
-}
-.shift-card {
-  background: #f5f7fb;
-  border-radius: 14px;
-  padding: 15px 15px 15px 19px;
-  min-height: 82px;
-  border-left: 4px solid var(--blue);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  text-align: left;
-  gap: 10px;
-}
-.shift-card strong {
-  font-size: 14px;
-  display: block;
-  line-height: 20px;
-}
-.shift-card small {
-  display: block;
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 7px;
-}
-.shift-card > span {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--blue);
-  white-space: nowrap;
-}
 .info-note {
   display: flex;
   align-items: center;
@@ -1185,10 +1104,6 @@ td small {
   border-radius: 12px;
   font-size: 11px;
   line-height: 16px;
-}
-.shift-panel .info-note {
-  margin-top: auto;
-  min-height: 52px;
 }
 .report-charts {
   display: grid;
@@ -1607,9 +1522,6 @@ td small {
   .parking-table-panel .table-tools .search-field {
     width: 245px;
   }
-  .staff-grid {
-    grid-template-columns: minmax(0, 2fr) minmax(270px, 1fr);
-  }
   .booking-filters {
     gap: 12px;
     flex-wrap: wrap;
@@ -1637,9 +1549,6 @@ td small {
   }
   .security-card small {
     line-height: 1.5;
-  }
-  .staff-table {
-    min-width: 650px;
   }
   .parking-table {
     min-width: 850px;
@@ -1669,9 +1578,6 @@ td small {
   }
   .table-heading {
     gap: 12px;
-  }
-  .staff-table-panel .search-field {
-    width: 210px;
   }
   .occupancy-panel {
     padding: 20px 16px;
@@ -1740,24 +1646,8 @@ td small {
   .overview-charts {
     grid-template-columns: minmax(0, 1.6fr) minmax(270px, 1fr);
   }
-  .staff-grid,
   .settings-grid {
     grid-template-columns: 1fr;
-  }
-  .shift-panel {
-    min-height: 0;
-  }
-  .shift-list {
-    flex-direction: row;
-    gap: 12px;
-    margin-top: 20px;
-  }
-  .shift-card {
-    flex: 1;
-    flex-wrap: wrap;
-  }
-  .shift-panel .info-note {
-    margin-top: 20px;
   }
   .table-heading {
     flex-wrap: wrap;
@@ -1952,22 +1842,6 @@ td small {
     padding: 20px 16px;
     font-size: 11px;
   }
-  .staff-grid {
-    margin-top: 18px;
-  }
-  .staff-table-panel .search-field {
-    width: 100%;
-  }
-  .staff-table-panel .panel-heading {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-  .shift-list {
-    flex-direction: column;
-  }
-  .shift-card {
-    flex-wrap: nowrap;
-  }
   .payment-shares {
     grid-template-columns: 1fr;
   }
@@ -2071,7 +1945,6 @@ td small {
     scroll-behavior: auto !important;
   }
 }
-
 
 /* ==========================================================================
    SmartPark Admin UI Refresh & Functional Revenue Reports Styles
@@ -2197,7 +2070,10 @@ td small {
   color: #1c3152;
   display: grid;
   place-items: center;
-  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
 }
 
 .icon-tool-button:hover:not(:disabled) {
@@ -2532,7 +2408,10 @@ tr.row-selected {
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
 }
 
 .tab-btn:hover {
@@ -2762,7 +2641,10 @@ tr.row-selected {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 16px;
-  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.15s;
 }
 
 .rank-card:hover {
@@ -2987,8 +2869,7 @@ tr.row-selected {
 /* Parking & Operations enhancements */
 .parking-table-panel,
 .booking-table-panel,
-.vehicles-panel,
-.staff-table-panel {
+.vehicles-panel {
   padding-bottom: 14px;
 }
 
@@ -3066,7 +2947,9 @@ tr.row-selected {
 .slot-cell {
   border: 1px solid transparent;
   text-align: left;
-  transition: transform 0.12s, border-color 0.12s;
+  transition:
+    transform 0.12s,
+    border-color 0.12s;
 }
 
 .slot-cell.open:hover:not(:disabled) {
@@ -3134,100 +3017,6 @@ tr.row-selected {
   margin-bottom: 0;
   width: 100%;
   align-items: center;
-}
-
-.staff-grid {
-  grid-template-columns: minmax(0, 3.2fr) minmax(245px, 1fr);
-  align-items: start;
-}
-
-.staff-table-panel .table-scroll th,
-.staff-table-panel .table-scroll td {
-  padding: 10px 9px;
-}
-
-.staff-table-panel .staff-initials {
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-}
-
-.staff-table-panel .search-field {
-  width: 220px;
-}
-
-.staff-name-cell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.shift-panel {
-  gap: 12px;
-  min-height: 0;
-}
-
-.shift-card {
-  width: 100%;
-  padding: 15px 16px;
-  border: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  text-align: left;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.shift-card:hover {
-  border-color: #b9cbf5;
-}
-
-.shift-card.selected {
-  border-color: var(--blue);
-  background: #eef3ff;
-}
-
-.shift-card span {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.shift-card-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.shift-card-right i {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.shift-panel .info-note {
-  display: flex;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: #f5f8ff;
-  border: 1px solid #dfe8fb;
-  margin-top: 6px;
-}
-
-.shift-panel .info-note strong {
-  display: block;
-  font-size: 12px;
-  margin-bottom: 4px;
-}
-
-.shift-panel .info-note p {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
 }
 
 .empty-banner {
@@ -3488,7 +3277,6 @@ tr.row-selected {
 .dark .checkbox-field,
 .dark .lot-select,
 .dark .rank-card,
-.dark .shift-card,
 .dark .security-card {
   background: #162231;
   border-color: #2f4058;
@@ -3556,10 +3344,8 @@ tr.row-selected {
 
 .dark .method-highlight,
 .dark .pricing-panel .info-note,
-.dark .shift-panel .info-note,
 .dark .rank-card:hover,
 .dark .rank-card.selected,
-.dark .shift-card.selected,
 .dark tr.row-selected {
   background: #1c2d45;
   border-color: #3a5680;
@@ -3597,7 +3383,6 @@ tr.row-selected {
 @media (max-width: 1050px) {
   .overview-charts,
   .report-charts,
-  .staff-grid,
   .settings-grid,
   .security-grid {
     grid-template-columns: 1fr;
@@ -3642,12 +3427,113 @@ tr.row-selected {
   }
 }
 
-.report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-block: 16px; }
-.report-actions label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.report-actions select { max-width: 100%; padding: 8px; }
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-block: 16px;
+}
+.report-actions label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.report-actions select {
+  max-width: 100%;
+  padding: 8px;
+}
 
-.incident-panel { padding: 20px; margin-bottom: 16px; }
-.incident-panel h2 { margin: 0 0 8px; font-size: 18px; line-height: 1.4; }
-.incident-panel p { margin: 6px 0; line-height: 1.5; }
-.incident-panel summary { margin-top: 12px; cursor: pointer; }
-.incident-panel li { padding-block: 6px; }
+.incident-panel {
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.incident-panel h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  line-height: 1.4;
+}
+.incident-panel p {
+  margin: 6px 0;
+  line-height: 1.5;
+}
+.incident-panel summary {
+  margin-top: 12px;
+  cursor: pointer;
+}
+.incident-panel li {
+  padding-block: 6px;
+}
+.wallet-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wallet-history {
+  margin-top: 24px;
+}
+.wallet-credit {
+  color: #087f5b;
+  font-weight: 700;
+}
+.wallet-debit,
+.wallet-error {
+  color: #b42318;
+}
+.wallet-error {
+  overflow-wrap: anywhere;
+}
+.wallet-reason {
+  max-width: 320px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.wallet-preview {
+  padding: 16px;
+  border-radius: 12px;
+  background: #eef4ff;
+  color: #173d80;
+}
+.wallet-operation {
+  overflow-wrap: anywhere;
+}
+.wallet-form {
+  display: grid;
+  gap: 16px;
+}
+.wallet-form p {
+  margin: 0;
+}
+.wallet-form label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+.wallet-form input,
+.wallet-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+.wallet-form textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+.dark .wallet-preview {
+  background: #172d4b;
+  color: #d8e7ff;
+}
+.dark .wallet-error,
+.dark .wallet-debit {
+  color: #fda29b;
+}
+.dark .wallet-credit {
+  color: #6ee7b7;
+}

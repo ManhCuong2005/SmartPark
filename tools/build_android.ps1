@@ -15,7 +15,7 @@ try {
     New-Item -ItemType Directory -Force -Path $env:GRADLE_USER_HOME,$projectTemp | Out-Null
     $env:TEMP = $projectTemp
     $env:TMP = $projectTemp
-    $entrypoint = if ($Role -eq 'staff') { 'lib/main_staff.dart' } else { 'lib/main.dart' }
+    $entrypoint = if ($Role -eq 'staff') { 'lib/main_kiosk.dart' } else { 'lib/main.dart' }
     & flutter.bat build apk "--$Mode" --flavor $Role -t $entrypoint
     if ($LASTEXITCODE -ne 0) { throw "Android build failed ($LASTEXITCODE)" }
 } finally {

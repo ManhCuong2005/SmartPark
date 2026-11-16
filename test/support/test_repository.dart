@@ -30,7 +30,7 @@ class TestRepository implements ParkingRepository {
           'id': account,
           'name': 'Test User',
           'phone': '',
-          'role': staff ? 'staff' : 'customer',
+          'role': staff ? 'owner' : 'customer',
         },
       ],
       'lots': [
@@ -38,7 +38,7 @@ class TestRepository implements ParkingRepository {
           'id': '20000000-0000-0000-0000-000000000001',
           'name': 'Test Parking',
           'area': 'Test area',
-          'owner_id': 'owner',
+          'owner_id': staff ? account : 'owner',
           'car_rate': 15000,
           'motorcycle_rate': 5000,
           'free_minutes': 0,
@@ -68,16 +68,6 @@ class TestRepository implements ParkingRepository {
           'occupied': false,
         },
       ],
-      'memberships':
-          staff
-              ? [
-                {
-                  'lot_id': '20000000-0000-0000-0000-000000000001',
-                  'user_id': account,
-                  'active': true,
-                },
-              ]
-              : [],
       'vehicles': [
         {
           'id': '50000000-0000-0000-0000-000000000001',
@@ -135,8 +125,12 @@ class TestRepository implements ParkingRepository {
     if (offline) throw const ParkFailure('Offline', retryable: true);
     if (kind == 'staff.lookup') return fixture().rows('bookings').single;
     if (kind == 'booking.pay') {
-      return {...fixture().rows('bookings').first, ...payload,
-        'prepaid': true, 'amount': payload['expected_amount']};
+      return {
+        ...fixture().rows('bookings').first,
+        ...payload,
+        'prepaid': true,
+        'amount': payload['expected_amount'],
+      };
     }
     return {};
   }

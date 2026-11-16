@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../park_controller.dart';
 import '../../../shared/widgets/park_widgets.dart';
 import 'booking_extension_sheet.dart';
+import '../../../domain/parking_rules.dart';
 
 class TicketScreen extends StatelessWidget {
   const TicketScreen({super.key, required this.repository});
@@ -71,7 +72,7 @@ class TicketScreen extends StatelessWidget {
                       const SizedBox(height: 20),
                       Text(
                         active
-                            ? 'Nhân viên đối chiếu biển số khi xe vào và ra.'
+                            ? 'Camera tự quét biển số khi xe vào và ra.'
                             : 'Vé đã kết thúc.',
                       ),
                       SelectableText(
@@ -101,9 +102,24 @@ class TicketScreen extends StatelessWidget {
                         'Trạng thái',
                         statusLabel(b['status'] as String),
                       ),
+                      DetailRow(
+                        'Thanh toán',
+                        b['status'] == 'completed'
+                            ? 'Đã thanh toán'
+                            : b['prepaid'] == true
+                            ? 'Đã trả trước · Phát sinh thu khi ra'
+                            : 'Trừ số dư khi xe ra',
+                      ),
+                      if (b['status'] == 'parked' && b['checked_in_at'] != null)
+                        DetailRow(
+                          'Còn phải trả · tạm tính',
+                          money(checkoutAmount(b, DateTime.now())),
+                        ),
                       if (b['prepaid'] == true || b['status'] == 'completed')
                         DetailRow(
-                          b['prepaid'] == true
+                          b['status'] == 'completed'
+                              ? 'Đã thanh toán tổng cộng'
+                              : b['prepaid'] == true
                               ? 'Đã thanh toán trước'
                               : 'Đã thu',
                           money(b['amount'] as int),

@@ -377,7 +377,7 @@ class HelpScreen extends StatelessWidget {
         Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            'Đặt chỗ cần kết nối mạng và được máy chủ xác nhận. Nhân viên đối chiếu biển số khi vào/ra bãi. Nhân viên kiểm tra và sửa kết quả OCR trước khi xác nhận. Khi mất mạng, các thao tác được phép nằm trong mục Đồng bộ dữ liệu; chỗ trống đã lưu có thể không còn chính xác. Liên hệ chủ bãi để xử lý vé có xung đột.',
+            'Đặt chỗ cần kết nối mạng và được máy chủ xác nhận. Camera tự quét biển số khi xe vào/ra, máy chủ đối chiếu vé và tính phí. Khi mất mạng, các thao tác được phép nằm trong mục Đồng bộ dữ liệu; chỗ trống đã lưu có thể không còn chính xác. Liên hệ quản trị bãi để xử lý vé có xung đột.',
           ),
         ),
       ],

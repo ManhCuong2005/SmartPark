@@ -59,8 +59,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       final balance = await ref.read(payosTopupRepositoryProvider).balance();
       if (mounted && _sameAccount) setState(() => _balance = balance);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _message = 'Chưa tải được số dư. Bạn có thể thử lại.');
+      }
     }
   }
 
@@ -71,15 +72,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       _message = null;
     });
     try {
-      if (!_sameAccount)
+      if (!_sameAccount) {
         throw const ParkFailure('Tài khoản đã thay đổi. Vui lòng mở lại vé.');
+      }
       await action();
     } catch (error) {
       if (error is ParkFailure && error.code == 'PRICE_CHANGED') {
         widget.repository.clearPayment(extension: _extension);
         await widget.repository.refresh();
       }
-      if (mounted)
+      if (mounted) {
         setState(
           () =>
               _message =
@@ -87,6 +89,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       ? error.message
                       : 'Chưa xác minh được thanh toán. Nếu đã chuyển tiền, hãy kiểm tra giao dịch; đừng chuyển lại.',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -103,6 +106,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   Future<void> _pay() async {
+    if (_method == 'later') {
+      if (_extension) {
+        await widget.repository.extendBooking(widget.booking!, widget.newEnd!);
+      } else {
+        await widget.repository.reservePayLater();
+      }
+      if (mounted) _finish();
+      return;
+    }
     if (_method == 'wallet') {
       await widget.repository.payBooking(
         booking: widget.booking,
@@ -227,7 +239,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   Widget build(BuildContext context) {
     final pending = _orderCode != null;
     final insufficient =
-        _method == 'wallet' && (_balance == null || _balance! < _amount);
+        (_method == 'wallet' || _method == 'later') &&
+        (_balance == null ||
+            (_method == 'later' ? _balance! <= 100000 : _balance! < _amount));
     return PopScope(
       canPop: !_busy,
       child: ParkPage(
@@ -239,6 +253,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 ? 'Chọn lại thông tin'
                 : pending
                 ? 'Kiểm tra thanh toán'
+                : _method == 'later'
+                ? (_extension
+                    ? 'Xác nhận gia hạn · Trả khi xe ra'
+                    : 'Xác nhận đặt chỗ · Trả khi xe ra')
                 : 'Thanh toán ${money(_amount)}',
             onPressed:
                 _busy || (!pending && insufficient)
@@ -278,7 +296,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       children: [
                         Text(
                           _extension
-                              ? 'Thanh toán phần thời gian thêm'
+                              ? 'Phần chưa thanh toán đến giờ ra mới'
+                              : _method == 'later'
+                              ? 'Phí dự kiến'
                               : 'Tổng thanh toán',
                         ),
                         const SizedBox(height: 10),
@@ -318,7 +338,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           ? 'Chưa tải được số dư'
                           : 'Khả dụng: ${money(_balance!)}',
                     ),
-                    if (_method == 'wallet')
+                    const SizedBox(height: 12),
+                    _option(
+                      'later',
+                      Icons.schedule,
+                      'Thanh toán sau khi xe ra',
+                      'Cần số dư lớn hơn 100.000đ. Hiện có: ${_balance == null ? 'đang tải' : money(_balance!)}. Chưa trừ tiền ngay.',
+                    ),
+                    if (_method == 'wallet' || _method == 'later')
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
@@ -383,9 +410,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   ],
                   const SizedBox(height: 20),
                   Text(
-                    _extension
-                        ? 'Giờ ra chỉ được cập nhật sau khi thanh toán thành công. Chưa thanh toán sẽ không gia hạn vé.'
-                        : 'Vé chỉ được xác nhận sau khi máy chủ nhận đủ tiền. Khi xe ra, không thu lại phần đã thanh toán.',
+                    _method == 'later'
+                        ? 'Máy chủ kiểm tra số dư lớn hơn 100.000đ trước khi xác nhận. Phần chưa thanh toán được trừ khi xe ra; hãy giữ đủ số dư, kể cả khi quá giờ.'
+                        : _extension
+                        ? 'Thanh toán toàn bộ phần còn thiếu đến giờ ra mới. Phần đã trả không bị thu lại; thời gian được cập nhật sau khi thanh toán thành công.'
+                        : 'Thanh toán trước cho thời gian đã đặt. Phần gia hạn hoặc quá giờ chưa thanh toán sẽ được trừ từ số dư khi xe ra.',
                   ),
                   const SizedBox(height: 12),
                   const Text(

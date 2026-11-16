@@ -1,7 +1,7 @@
 # SmartPark
 
 Ứng dụng đặt chỗ và quản lý bãi đỗ xe tích hợp nhận diện biển số on-device.
-Flutter cho khách/nhân viên; React + TypeScript cho chủ bãi. Supabase Cloud là
+Flutter cho khách/máy quét tự động; React + TypeScript cho admin. Supabase Cloud là
 backend và CSDL online duy nhất. Drift/SQLite lưu cache và hàng đợi offline.
 
 Source đã chuyển từ prototype sang repository thật; không tự tạo dữ liệu demo.
@@ -13,24 +13,31 @@ biểu đồ được điều chỉnh để thể hiện dữ liệu, trạng th
 Xem [thiết lập Supabase và tài khoản](docs/SUPABASE_SETUP.md). Chủ project đã xác
 nhận chạy migration 001/002/004 và `supabase/setup-reminder-scheduler.sql` trên
 Cloud. Không chạy lại migration; kiểm tra lượt chạy Cron và luồng nhắc thật.
-Chạy 003 nếu chưa có để cập nhật cấp/thu hồi quyền nhân viên trong Admin.
+Phiên bản hiện tại dùng tài khoản khách và admin; máy quét do admin khởi động.
 Luồng đặt chỗ mới cần **005/006** sau 004. Đã áp dụng và xác minh hai bản này
 trên Cloud ngày 12/11/2026; không chạy lại ở project hiện tại. Xem
 [đặt trước, check-in trễ và hạn tự hủy](docs/BOOKING_FLOW.md).
-Push Android cấu hình riêng theo [hướng dẫn thông báo](docs/NOTIFICATIONS.md). Có thể nạp
-[dữ liệu mẫu ba vai trò](supabase/SEED_DEMO.md) sau khi đăng ký/xác nhận tài khoản.
+Push Android cấu hình riêng theo [hướng dẫn thông báo](docs/NOTIFICATIONS.md).
+Quản lý phương tiện và bãi thật sau khi đăng ký/xác nhận tài khoản.
 Không chạy fixture trong `supabase/tests` lên Cloud.
+
+Luồng **quét tự động, trả trước/trả sau và thu phí qua ví khi xe ra** cần
+migration **013–016** sau 001–012. Migration 015 gỡ phân công nhân viên và thêm
+[Admin cộng/trừ số dư](docs/ADMIN_WALLET.md). Migration 016 tách phiên cam vào/ra,
+chặn thực hiện sai chiều ở backend. Gia hạn chọn trả ngay hoặc trả sau; trả sau cần
+số dư **lớn hơn 100.000đ**. Xem [hướng dẫn kiosk và cập nhật backend](docs/AUTOMATIC_SCANNING.md).
 
 ## Chạy trên Windows
 
-`Run-SmartPark.cmd` mở Customer Web, Staff Web và Admin; camera OCR ML Kit chỉ có
-trên Android/iOS. Lần đầu launcher chuẩn bị SQLite WASM/worker cho Flutter Web.
+`Run-SmartPark.cmd` mở Customer Web, Camera Web và Admin. Máy quét dùng ML Kit
+trên Android/iOS và Tesseract.js trên Web; chọn bãi, chọn cam vào/ra để tự quét. Lần đầu Web tải
+runtime/model OCR. Launcher chuẩn bị SQLite WASM/worker cho Flutter Web.
 
 ```powershell
 flutter pub get
 dart run tools/prepare_web.dart
 flutter run -d chrome -t lib/main.dart
-flutter run -d chrome -t lib/main_staff.dart
+flutter run -d chrome -t lib/main_kiosk.dart
 ```
 
 Trên Android, hai flavor cài được cùng lúc:
