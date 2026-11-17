@@ -29,6 +29,9 @@ try {
    ['front webcam', ['43A-123.45'], true],
    ['plate on car', ['43A-123.45'], false],
    ['small plate on car', ['43A-123.45'], false, 36],
+   ['yellow plate on car', ['43A-123.45'], false],
+   ['motorcycle plate on car', ['59-X1', '123.45'], false, 60],
+   ['clutter around plate on car', ['43A-123.45'], false, 60],
    ['blank frame', [], false],
   ]) {
    const canvas = document.createElement('canvas'); canvas.width = 1280; canvas.height = 720;
@@ -37,7 +40,13 @@ try {
    if (name.includes('plate on car')) {
     context.fillStyle='#6a777e'; context.fillRect(0,0,1280,720);
     const factor=fontSize/86;
-    context.fillStyle='white'; context.fillRect(640-320*factor,390-110*factor,640*factor,160*factor);
+    const twoRows=texts.length===2;
+    context.fillStyle=name.startsWith('yellow')?'#ffdf3a':'white';
+    context.fillRect(640-320*factor,twoRows?250:390-110*factor,640*factor,twoRows?210:160*factor);
+    if(name.startsWith('clutter')){
+     context.fillStyle='white'; context.font='bold 30px Arial'; context.textAlign='center';
+     context.fillText('SMARTPARK 2026',640,220); context.fillText('PARKING AREA',640,490);
+    }
    }
    if (mirrored) { context.translate(1280, 0); context.scale(-1, 1); }
    context.fillStyle = 'black'; context.font = `bold ${fontSize}px Arial`; context.textAlign = 'center';
@@ -54,11 +63,7 @@ try {
   if (result.name === 'blank frame') { assert.equal(result.usable, false); continue; }
   assert.equal(result.usable, true);
   const plate = result.lines.map(line => line.text).join('').replace(/[^A-Z0-9]/g, '');
-  if (result.name === 'small plate on car') {
-   assert.ok(plate === '' || plate === '43A12345', 'small text must be exact or rejected, never guessed');
-   continue;
-  }
-  assert.equal(plate, result.name === 'motorcycle' ? '59X112345' : '43A12345');
+  assert.equal(plate, result.name.startsWith('motorcycle') ? '59X112345' : '43A12345', result.name);
   assert.ok(result.lines.every(line => line.left >= .1 && line.right <= .9 && line.top >= .25 && line.bottom <= .75));
  }
  console.log(JSON.stringify(results));

@@ -69,7 +69,10 @@ class AutomaticScanController extends ChangeNotifier {
         status = 'Chỉ đưa một biển số vào khung quét';
       } else if (candidates.length == 1) {
         plate = candidates.single;
-        status = 'Đang kiểm tra biển số…';
+        status =
+            _consensus.isBlocked(plate)
+                ? 'Đã xử lý biển số này · Chờ xe tiếp theo'
+                : 'Đang kiểm tra biển số…';
       } else {
         plate = '';
         status = 'Đang tự quét · Đưa biển số rõ nét vào khung';

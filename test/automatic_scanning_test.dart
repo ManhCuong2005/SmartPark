@@ -55,6 +55,62 @@ void main() {
     );
   });
   test(
+    'selects the visibly closer plate, rejects distant text and waits on equal targets',
+    () {
+      const near = PlateLine('43A-123.45', .2, .46, .65, .55);
+      const far = PlateLine('43A-999.99', .6, .28, .8, .30);
+      expect(scanCandidates([far]), isEmpty);
+      expect(scanCandidates([near, far]), ['43A12345']);
+      const second = PlateLine('43B-678.90', .4, .28, .7, .33);
+      expect(scanCandidates([near, second]), ['43A12345']);
+      const equal = PlateLine('43B-678.90', .4, .28, .85, .37);
+      expect(
+        scanCandidates([near, equal]),
+        unorderedEquals(['43A12345', '43B67890']),
+      );
+      expect(
+        scanCandidates([const PlateLine('43A-123.45', .05, .4, .5, .5)]),
+        isEmpty,
+      );
+    },
+  );
+  test(
+    'two-row plate size uses character height instead of total rectangle height',
+    () {
+      expect(
+        scanCandidates(const [
+          PlateLine('59-X1', .3, .40, .65, .46),
+          PlateLine('123.45', .3, .49, .65, .55),
+          PlateLine('43B-678.90', .1, .28, .4, .32),
+        ]),
+        ['59X112345'],
+      );
+      expect(
+        scanCandidates(const [
+          PlateLine('59-X1', .3, .40, .5, .42),
+          PlateLine('123.45', .3, .45, .5, .47),
+        ]),
+        isEmpty,
+      );
+    },
+  );
+  test(
+    'alternating two processed vehicles cannot clear each other duplicate protection',
+    () {
+      final consensus = PlateConsensus();
+      var now = DateTime.utc(2026);
+      consensus.block('43A12345', now);
+      consensus.block('43B67890', now);
+      for (var i = 0; i < 40; i++) {
+        now = now.add(const Duration(milliseconds: 250));
+        expect(
+          consensus.observe([i.isEven ? '43A12345' : '43B67890'], now),
+          isNull,
+        );
+      }
+    },
+  );
+  test(
     'slow browser OCR still confirms three frames but stale observations expire',
     () {
       final consensus = PlateConsensus();
@@ -123,6 +179,7 @@ void main() {
         await scanner.acceptFrame(['43A12345']);
       }
       expect(calls, 1);
+      expect(scanner.status, 'Đã xử lý biển số này · Chờ xe tiếp theo');
     },
   );
   test(

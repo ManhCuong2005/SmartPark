@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'parking_rules.dart';
 
 enum ScanDirection {
@@ -17,22 +18,40 @@ class PlateLine {
   double get centerY => (top + bottom) / 2;
 }
 
-List<String> scanCandidates(List<PlateLine> lines) {
+class PlateTarget {
+  const PlateTarget(this.plate, this.bounds, this.characterHeight);
+  final String plate;
+  final PlateLine bounds;
+  final double characterHeight;
+}
+
+List<PlateTarget> scanTargets(List<PlateLine> lines) {
   final visible =
       lines
           .where(
             (l) =>
-                l.centerX >= .1 &&
-                l.centerX <= .9 &&
-                l.centerY >= .25 &&
-                l.centerY <= .75 &&
+                l.left >= .1 &&
+                l.right <= .9 &&
+                l.top >= .25 &&
+                l.bottom <= .75 &&
                 l.bottom - l.top >= .018,
           )
           .toList()
         ..sort((a, b) => a.top.compareTo(b.top));
-  final candidates = <String>{};
+  final candidates = <String, PlateTarget>{};
+  void add(String text, PlateLine bounds, double characterHeight) {
+    // shortcut: apparent character size estimates proximity; calibrate for the installed camera and plate types.
+    if (characterHeight < .035 || bounds.right - bounds.left < .12) return;
+    for (final plate in plateCandidates(text)) {
+      final previous = candidates[plate];
+      if (previous == null || previous.characterHeight < characterHeight) {
+        candidates[plate] = PlateTarget(plate, bounds, characterHeight);
+      }
+    }
+  }
+
   for (final line in visible) {
-    candidates.addAll(plateCandidates(line.text));
+    add(line.text, line, line.bottom - line.top);
     // Join only adjacent aligned rows, never the text of the whole scene.
     for (final next in visible) {
       final height = line.bottom - line.top;
@@ -50,16 +69,38 @@ List<String> scanCandidates(List<PlateLine> lines) {
           !RegExp(r'^\d{4,5}$').hasMatch(normalizePlate(next.text))) {
         continue;
       }
-      candidates.addAll(plateCandidates('${line.text}\n${next.text}'));
+      add(
+        '${line.text}\n${next.text}',
+        PlateLine(
+          '',
+          math.min(line.left, next.left),
+          line.top,
+          math.max(line.right, next.right),
+          next.bottom,
+        ),
+        math.min(height, next.bottom - next.top),
+      );
     }
   }
-  return candidates.toList();
+  final targets =
+      candidates.values.toList()
+        ..sort((a, b) => b.characterHeight.compareTo(a.characterHeight));
+  if (targets.length > 1 &&
+      targets.first.characterHeight >= targets[1].characterHeight * 1.5) {
+    return [targets.first];
+  }
+  return targets;
 }
+
+List<String> scanCandidates(List<PlateLine> lines) =>
+    scanTargets(lines).map((target) => target.plate).toList();
 
 class PlateConsensus {
   final _samples = <String?>[];
-  DateTime? _lastSample, _lastBlockedSeen, _blockedAt;
-  String? _blocked;
+  DateTime? _lastSample;
+  final _blocked = <String, ({DateTime at, DateTime seen})>{};
+
+  bool isBlocked(String plate) => _blocked.containsKey(plate);
 
   void reset() {
     _samples.clear();
@@ -67,8 +108,7 @@ class PlateConsensus {
   }
 
   void block(String plate, DateTime now) {
-    _blocked = plate;
-    _lastBlockedSeen = _blockedAt = now;
+    _blocked[plate] = (at: now, seen: now);
     reset();
   }
 
@@ -79,17 +119,19 @@ class PlateConsensus {
       reset();
     }
     _lastSample = now;
-    if (_blocked != null) {
-      if (candidates.contains(_blocked)) _lastBlockedSeen = now;
-      if (now.difference(_lastBlockedSeen!) >= const Duration(seconds: 2) &&
-          now.difference(_blockedAt!) >= const Duration(seconds: 30)) {
-        _blocked = null;
-      }
+    for (final plate in candidates) {
+      final blocked = _blocked[plate];
+      if (blocked != null) _blocked[plate] = (at: blocked.at, seen: now);
     }
+    _blocked.removeWhere(
+      (plate, blocked) =>
+          now.difference(blocked.seen) >= const Duration(seconds: 2) &&
+          now.difference(blocked.at) >= const Duration(seconds: 30),
+    );
     final plate = candidates.length == 1 ? candidates.single : null;
     _samples.add(plate);
     if (_samples.length > 5) _samples.removeAt(0);
-    if (plate == null || plate == _blocked) return null;
+    if (plate == null || _blocked.containsKey(plate)) return null;
     return _samples.where((p) => p == plate).length >= 3 ? plate : null;
   }
 }

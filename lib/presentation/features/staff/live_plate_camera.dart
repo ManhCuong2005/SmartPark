@@ -36,6 +36,8 @@ class _LivePlateCameraState extends State<LivePlateCamera>
   List<CameraDescription> _cameras = [];
   String? _selectedCamera;
   int _generation = 0;
+  List<PlateTarget> _targets = [];
+  int _framesRead = 0;
 
   @override
   void initState() {
@@ -153,7 +155,7 @@ class _LivePlateCameraState extends State<LivePlateCamera>
         camera.value.deviceOrientation,
       );
       if (mounted && _active) {
-        await widget.onFrame(lines == null ? null : scanCandidates(lines));
+        await _deliver(lines);
       }
     } catch (error) {
       _frameError(error);
@@ -171,11 +173,22 @@ class _LivePlateCameraState extends State<LivePlateCamera>
         mirrored: camera.description.lensDirection != CameraLensDirection.back,
       );
       if (mounted && _active) {
-        await widget.onFrame(lines == null ? null : scanCandidates(lines));
+        await _deliver(lines);
       }
     } catch (error) {
       _frameError(error);
     }
+  }
+
+  Future<void> _deliver(List<PlateLine>? lines) async {
+    final targets = lines == null ? <PlateTarget>[] : scanTargets(lines);
+    setState(() {
+      _targets = targets;
+      _framesRead++;
+    });
+    await widget.onFrame(
+      lines == null ? null : targets.map((t) => t.plate).toList(),
+    );
   }
 
   void _frameError(Object error) {
@@ -210,6 +223,8 @@ class _LivePlateCameraState extends State<LivePlateCamera>
       _releasing ??= _disposeCamera().whenComplete(() => _releasing = null);
   Future<void> _disposeCamera() async {
     _ready = false;
+    _targets = [];
+    _framesRead = 0;
     _webTimer?.cancel();
     _webTimer = null;
     final camera = _camera;
@@ -312,9 +327,25 @@ class _LivePlateCameraState extends State<LivePlateCamera>
         ),
       );
     }
+    final flipPreview =
+        kIsWeb && camera.description.lensDirection != CameraLensDirection.back;
     // AspectRatio keeps the guide coordinates identical to OCR coordinates.
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Text(
+            _framesRead == 0
+                ? 'Đang chờ khung hình đầu tiên…'
+                : _targets.isEmpty
+                ? 'Tự quét · Đã đọc $_framesRead khung · Đưa biển số gần hơn trong khung'
+                : _targets.length > 1
+                ? 'Có nhiều biển gần nhau · Chỉ giữ một xe trong vùng quét'
+                : 'Đã khoanh vùng biển số',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70),
+          ),
+        ),
         if (_cameras.length > 1)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -344,12 +375,15 @@ class _LivePlateCameraState extends State<LivePlateCamera>
           child: Center(
             child: Transform.flip(
               // camera_web mirrors both preview and JPEG for non-rear cameras.
-              flipX:
-                  kIsWeb &&
-                  camera.description.lensDirection != CameraLensDirection.back,
+              flipX: flipPreview,
               child: CameraPreview(
                 camera,
-                child: IgnorePointer(child: CustomPaint(painter: _ScanGuide())),
+                child: Transform.flip(
+                  flipX: flipPreview,
+                  child: IgnorePointer(
+                    child: CustomPaint(painter: _ScanGuide(_targets)),
+                  ),
+                ),
               ),
             ),
           ),
@@ -360,6 +394,8 @@ class _LivePlateCameraState extends State<LivePlateCamera>
 }
 
 class _ScanGuide extends CustomPainter {
+  const _ScanGuide(this.targets);
+  final List<PlateTarget> targets;
   @override
   void paint(Canvas canvas, Size size) {
     final region = Rect.fromLTRB(
@@ -381,8 +417,25 @@ class _ScanGuide extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
+    for (final target in targets) {
+      final bounds = target.bounds;
+      canvas.drawRect(
+        Rect.fromLTRB(
+          bounds.left * size.width,
+          bounds.top * size.height,
+          bounds.right * size.width,
+          bounds.bottom * size.height,
+        ),
+        Paint()
+          ..color =
+              targets.length == 1 ? Colors.greenAccent : Colors.orangeAccent
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3,
+      );
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _ScanGuide oldDelegate) =>
+      oldDelegate.targets != targets;
 }

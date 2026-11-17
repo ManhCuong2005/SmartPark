@@ -95,8 +95,10 @@ Firebase/push đã cấu hình theo `docs/NOTIFICATIONS.md` và
 - Web: webcam qua `camera`, Tesseract.js 6.0.1 trong browser worker; ảnh không
   gửi lên dịch vụ OCR. Runtime/model tải từ CDN lúc khởi tạo, có thể được cache.
   Cần HTTPS hoặc localhost. Webcam trước được bỏ lật ngang cả preview và trước OCR.
-  Crop được phóng vừa đủ, chuyển xám/nhị phân theo vùng lân cận để tách chữ khỏi nền xe và hỗ trợ
-  biển một/hai dòng. Hiện trạng camera/OCR được hiển thị trong lúc tự đọc.
+  Tìm vùng sáng dạng biển trắng/vàng trong khung, crop sát vùng đó và thêm viền trắng
+  trước OCR. Nếu chưa đọc được, thử nhị phân cục bộ rồi đọc chữ rời trong khung.
+  Biển một/hai dòng đều đi qua bước ghép theo vị trí. Giao diện hiển thị số khung
+  đã đọc và vẽ viền xanh quanh biển đang chọn, viền cam nếu có nhiều biển tương đương.
 - Mục tiêu xử lý tối đa 4 khung/giây; bỏ khung khi đang bận. Cần 3 kết quả giống
   nhau trong 5 lần quan sát gần nhất, không chốt nếu khung hiện tại có nhiều ứng viên.
   Khoảng cách giữa hai lần đọc từ 8 giây trở lên sẽ xóa đồng thuận; không còn xóa
@@ -104,7 +106,15 @@ Firebase/push đã cấu hình theo `docs/NOTIFICATIONS.md` và
 - Bỏ khung quá tối/thiếu tương phản; lọc dòng nhỏ và độ tin cậy OCR thấp nếu có.
   Ghép biển hai dòng theo vị trí và khoảng cách; không đoán hàng loạt O/0, I/1,
   không ép biển thành một biển gần giống trong CSDL.
-- Đây là bản vùng quét + OCR + đồng thuận nhiều khung hình. Chưa có model chuyên
+- Chỉ xét chữ nằm trọn trong khung, cao ít nhất 3,5% chiều cao ảnh, vùng chữ rộng
+  ít nhất 12% chiều rộng ảnh. Nếu chiều cao chữ của biển lớn nhất gấp ít nhất 1,5 lần
+  biển thứ hai, chọn biển lớn nhất. Hai biển tương đương thì chờ. Với biển hai dòng,
+  so chiều cao ký tự từng dòng để tránh ưu tiên nhầm chỉ vì biển có hai dòng.
+  Kích thước hiển thị ước lượng độ gần, cần hiệu chỉnh theo camera và loại biển.
+- Chặn riêng từng biển vừa xử lý, kể cả khi xe khác xuất hiện xen kẽ. Biển đó chỉ
+  được quét lại khi thỏa điều kiện vắng mặt/30 giây nêu trên. Giao diện giữ thông báo
+  đã xử lý khi biển vẫn xuất hiện, không đổi lại thành đang kiểm tra.
+- Đây là bản tìm vùng sáng + OCR + đồng thuận nhiều khung hình. Chưa có model chuyên
   phát hiện biển Việt Nam, nắn phối cảnh hoặc bộ đo độ nhòe đã hiệu chỉnh ngoài bãi.
   Ngưỡng ảnh phải được kiểm chứng trên camera lắp thật. Đồng thuận có thể lặp lại
   một lỗi OCR; không thể hứa độ chính xác hoặc thời gian 1–2 giây trước phép đo đó.
@@ -123,9 +133,10 @@ flutter build web --no-pub -t lib/main_kiosk.dart --output build/kiosk
 
 Test PostgreSQL tạo database tạm local, không chạm Cloud. Bài kiểm tra browser
 cần Playwright đã cài trong `admin-web`, Chrome và kết nối tải model; dùng ảnh
-biển tự tạo một dòng/hai dòng/lật ngang và biển trên nền xe tối. Mẫu chữ nhỏ có
-thể bị từ chối; không ép đọc hoặc đoán sang biển khác. Cần đưa biển đủ lớn vào khung.
+biển tự tạo một dòng/hai dòng/lật ngang, biển trắng/vàng, chữ nhỏ và chữ nhiễu
+quanh biển. Cần đưa biển đủ lớn vào khung để qua ngưỡng chọn biển gần.
 `test_browser_camera.mjs` chạy Flutter/camera_web/OCR thật với video tổng hợp,
 backend giả chỉ trong target kiểm thử, xác minh ảnh đúng chiều, tự quét cả hai làn,
-chọn thiết bị và khôi phục đúng làn trong hai tab. Bộ SQL riêng xác minh quyền và tiền.
+chọn thiết bị, từ chối biển xa/hai biển tương đương, chặn lặp và khôi phục đúng làn
+trong hai tab. Bộ SQL riêng xác minh quyền và tiền.
 Các bài này không thay thế benchmark ngoài thực tế hoặc thử với camera lắp thật.

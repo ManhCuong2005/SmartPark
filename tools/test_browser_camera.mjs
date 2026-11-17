@@ -22,6 +22,7 @@ try {
   browser = await chromium.launch({channel:'chrome', headless:true});
   const context = await browser.newContext({viewport:{width:1280,height:900}});
   await context.addInitScript(() => {
+    window.cameraScene = 'far';
     navigator.mediaDevices.enumerateDevices = async () => [
       {deviceId:'front-test',kind:'videoinput',label:'Front test camera',groupId:'test'},
       {deviceId:'usb-test',kind:'videoinput',label:'USB test camera',groupId:'test'},
@@ -31,23 +32,47 @@ try {
       const ctx=canvas.getContext('2d');
       function paint() {
         ctx.fillStyle='#6a777e'; ctx.fillRect(0,0,1280,720);
-        ctx.fillStyle='#fff'; ctx.fillRect(320,280,640,160);
-        ctx.fillStyle='#000'; ctx.font='bold 86px Arial'; ctx.textAlign='center'; ctx.fillText('43A-123.45',640,390);
+        function plate(text,x,y,size) {
+          const factor=size/86;
+          ctx.fillStyle='#fff'; ctx.fillRect(x-320*factor,y-110*factor,640*factor,160*factor);
+          ctx.fillStyle='#000'; ctx.font=`bold ${size}px Arial`; ctx.textAlign='center'; ctx.fillText(text,x,y);
+        }
+        if(window.cameraScene==='far') plate('43B-678.90',640,390,22);
+        if(window.cameraScene==='ambiguous') {
+          plate('43A-123.45',420,320,60); plate('43B-678.90',850,460,60);
+        }
+        if(window.cameraScene==='near') {
+          plate('43B-678.90',920,250,22); plate('43A-123.45',640,430,64);
+          ctx.fillStyle='white'; ctx.font='bold 24px Arial'; ctx.fillText('PARKING AREA 2026',640,200);
+        }
       }
       paint(); setInterval(paint,100);
       return canvas.captureStream(10);
     };
   });
   const url=`http://127.0.0.1:${server.address().port}`;
-  async function openLane(lane, expected) {
+  async function openLane(lane) {
     const page=await context.newPage();
     activePage=page;
     page.on('pageerror', error => console.log('PAGE ERROR', error.message));
+    const scans=[];
+    page.on('console', message => {
+      if(message.text().startsWith('KIOSK_SCAN:')) scans.push(JSON.parse(message.text().slice('KIOSK_SCAN:'.length)));
+    });
     await page.goto(url);
     await page.getByRole('button',{name:/^Test Parking/}).click();
     await page.getByRole('button',{name:new RegExp('^'+lane)}).click();
     await page.getByRole('button',{name:lane==='Cam vào'?'Camera 1 · Front test camera':'Camera 2 · USB test camera',exact:true}).click();
-    await page.locator('flt-semantics-host').getByText(expected,{exact:true}).waitFor({timeout:90000});
+    await page.getByText(/Tự quét · Đã đọc [3-9]\d* khung/).waitFor({timeout:60000});
+    assert.equal(scans.length,0,'far plate must not trigger a scan');
+    await page.evaluate(()=>window.cameraScene='ambiguous');
+    await page.getByText('Có nhiều biển gần nhau · Chỉ giữ một xe trong vùng quét',{exact:true}).waitFor({timeout:60000});
+    assert.equal(scans.length,0,'equal targets must not trigger a scan');
+    await page.evaluate(()=>window.cameraScene='near');
+    await page.locator('flt-semantics-host').getByText('Đã xử lý biển số này · Chờ xe tiếp theo',{exact:true}).waitFor({timeout:60000});
+    assert.equal(scans.length,1,'a standing vehicle is processed exactly once');
+    assert.equal(scans[0].plate,'43A12345');
+    assert.equal(scans[0].direction,lane==='Cam vào'?'entry':'exit');
     const video=page.locator('video').first(); await video.waitFor({state:'attached'});
     const orientation=await video.evaluate(video => {
       let scale=1;
@@ -62,14 +87,14 @@ try {
     await page.screenshot({path:`.smartpark/ui-review/${lane==='Cam vào'?'entry':'exit'}-browser-camera.png`});
     return page;
   }
-  const entry=await openLane('Cam vào','Xe vào hợp lệ');
-  const exit=await openLane('Cam ra','Đã thanh toán · Xe ra hợp lệ');
+  const entry=await openLane('Cam vào');
+  const exit=await openLane('Cam ra');
   await entry.reload();
   await entry.getByText('Cam vào · Test Parking',{exact:true}).waitFor({timeout:60000});
   assert.equal(await entry.getByText('Cam ra · Test Parking',{exact:true}).count(),0);
   await exit.reload();
   await exit.getByText('Cam ra · Test Parking',{exact:true}).waitFor({timeout:60000});
-  console.log('PASS Flutter browser camera: upright preview, automatic entry/exit recognition, independent lane restore across tabs');
+  console.log('PASS Flutter browser camera: far plates rejected, ambiguous plates wait, nearest plate auto scanned, duplicates blocked, upright preview, independent lanes');
 } catch(error) {
   if(activePage) {
     console.log((await activePage.locator('flt-semantics-host').textContent()).slice(-3000));
