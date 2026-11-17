@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter_tts/flutter_tts.dart';
-import '../domain/models.dart';
 
 abstract interface class ScanFeedback {
   Future<void> prepare();
@@ -11,15 +9,30 @@ abstract interface class ScanFeedback {
   Future<void> dispose();
 }
 
+/// Bundled Vietnamese announcements do not depend on the system's voices.
+String scanAnnouncementAsset(String message) {
+  final name =
+      message.startsWith('Xe chưa đăng ký')
+          ? 'invalid_ticket'
+          : message.startsWith('Bạn đã gửi quá giờ')
+          ? 'overdue'
+          : message.startsWith('Số dư không đủ')
+          ? 'balance'
+          : message.startsWith('Xe chưa được ghi nhận')
+          ? 'entry'
+          : message.startsWith('Phiên camera không hợp lệ')
+          ? 'session'
+          : message.startsWith('Chưa xác nhận được')
+          ? 'retry'
+          : 'error';
+  return 'audio/scan_${name}_vi.mp3';
+}
+
 class DeviceScanFeedback implements ScanFeedback {
-  final _tts = FlutterTts();
   final _sound = AudioPlayer();
   Completer<void>? _cancelledSpeech;
   @override
   Future<void> prepare() async {
-    await _tts.setLanguage('vi-VN');
-    await _tts.setSpeechRate(.48);
-    await _tts.awaitSpeakCompletion(true);
     // Prime audio during the lot-selection gesture, including browser autoplay.
     await _sound.setVolume(0);
     await _sound.play(AssetSource('audio/scan_success.wav'));
@@ -29,40 +42,22 @@ class DeviceScanFeedback implements ScanFeedback {
 
   @override
   Future<void> speak(String message) async {
-    final failed = Completer<void>();
     final cancelled = Completer<void>();
     _cancelledSpeech = cancelled;
-    _tts.setErrorHandler((_) {
-      if (!failed.isCompleted) {
-        failed.completeError(
-          const ParkFailure(
-            'Chưa phát được giọng nói. Kiểm tra loa và giọng tiếng Việt của thiết bị.',
-          ),
-        );
-      }
+    final completed = Completer<void>();
+    final subscription = _sound.onPlayerComplete.listen((_) {
+      if (!completed.isCompleted) completed.complete();
     });
-    dynamic result;
     try {
-      result = await Future.any<dynamic>([
-        _tts.speak(message),
-        failed.future,
+      await _sound.play(AssetSource(scanAnnouncementAsset(message)));
+      await Future.any([
+        completed.future,
         cancelled.future,
-      ]).timeout(
-        const Duration(seconds: 45),
-        onTimeout:
-            () =>
-                throw const ParkFailure(
-                  'Giọng nói không phản hồi. Kiểm tra âm thanh của thiết bị.',
-                ),
-      );
+      ]).timeout(const Duration(seconds: 20));
     } finally {
+      await subscription.cancel();
       if (identical(_cancelledSpeech, cancelled)) _cancelledSpeech = null;
-    }
-    // Web completes with null, Android/iOS normally complete with 1.
-    if (result == 0) {
-      throw const ParkFailure(
-        'Chưa phát được giọng nói. Kiểm tra loa và giọng tiếng Việt của thiết bị.',
-      );
+      await _sound.stop();
     }
   }
 
@@ -71,7 +66,6 @@ class DeviceScanFeedback implements ScanFeedback {
   @override
   Future<void> stop() async {
     if (_cancelledSpeech?.isCompleted == false) _cancelledSpeech!.complete();
-    await _tts.stop();
     await _sound.stop();
   }
 

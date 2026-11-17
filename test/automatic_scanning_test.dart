@@ -8,6 +8,7 @@ import 'package:smartpark/domain/plate_scanning.dart';
 import 'package:smartpark/presentation/automatic_scan_controller.dart';
 
 class TestScanFeedback implements ScanFeedback {
+  bool failAudio = false;
   final spoken = <String>[];
   int chimes = 0;
   Completer<void>? speaking;
@@ -15,12 +16,14 @@ class TestScanFeedback implements ScanFeedback {
   Future<void> prepare() async {}
   @override
   Future<void> speak(String message) async {
+    if (failAudio) throw StateError('Speaker unavailable');
     spoken.add(message);
     await speaking?.future;
   }
 
   @override
   Future<void> success() async {
+    if (failAudio) throw StateError('Speaker unavailable');
     chimes++;
   }
 
@@ -33,6 +36,70 @@ class TestScanFeedback implements ScanFeedback {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test('announcements always select bundled Vietnamese audio', () {
+    for (final entry
+        in {
+          'Xe chưa đăng ký đỗ online hoặc quét nhầm, vui lòng thử lại':
+              'invalid_ticket',
+          'Bạn đã gửi quá giờ, và số dư không đủ, vui lòng nạp thêm tiền':
+              'overdue',
+          'Số dư không đủ thanh toán tiền gửi xe': 'balance',
+          'Xe chưa được ghi nhận vào bãi': 'entry',
+          'Phiên camera không hợp lệ': 'session',
+          'Chưa xác nhận được với máy chủ': 'retry',
+          'Unexpected English server error': 'error',
+        }.entries) {
+      expect(
+        scanAnnouncementAsset(entry.key),
+        'audio/scan_${entry.value}_vi.mp3',
+      );
+    }
+  });
+  for (final failAudio in [false, true]) {
+    test(
+      'new booking after rejection needs no reload, audio failure=$failAudio',
+      () async {
+        var now = DateTime.utc(2026);
+        var booked = false;
+        final ids = <String>[];
+        final scanner = AutomaticScanController(
+          execute: (id, plate) async {
+            ids.add(id);
+            if (!booked) {
+              throw const ParkFailure(
+                'No ticket',
+                code: 'VALID_TICKET_REQUIRED',
+              );
+            }
+            return {'action': 'entered'};
+          },
+          feedback: TestScanFeedback()..failAudio = failAudio,
+          preferences: await SharedPreferences.getInstance(),
+          storageKey: 'scan',
+          clock: () => now,
+        );
+        addTearDown(scanner.dispose);
+        for (var i = 0; i < 3; i++) {
+          await scanner.acceptFrame(['43A12345']);
+        }
+        expect(scanner.fatal, false);
+        booked = true;
+        now = now.add(const Duration(seconds: 5));
+        for (var i = 0; i < 3; i++) {
+          await scanner.acceptFrame(['43A12345']);
+        }
+        expect(ids.length, 2);
+        expect(ids.first, isNot(ids.last));
+        expect(scanner.fatal, false);
+        expect(scanner.hasPending, false);
+        expect(scanner.status, startsWith('Xe vào hợp lệ'));
+        for (var i = 0; i < 10; i++) {
+          await scanner.acceptFrame(['43A12345']);
+        }
+        expect(ids.length, 2);
+      },
+    );
+  }
   test('joins aligned motorcycle rows and ignores text outside the guide', () {
     expect(
       scanCandidates(const [

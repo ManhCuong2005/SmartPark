@@ -131,7 +131,7 @@
     const canvas = document.createElement('canvas');
     const sourceWidth = source.width * (region.right - region.left);
     const sourceHeight = source.height * (region.bottom - region.top);
-    const scale = Math.min(3, 1400 / sourceWidth);
+    const scale = Math.min(2, 960 / sourceWidth);
     const border = 20;
     const contentWidth = Math.round(sourceWidth * scale), contentHeight = Math.round(sourceHeight * scale);
     canvas.width = contentWidth + border * 2; canvas.height = contentHeight + border * 2;

@@ -97,7 +97,7 @@ class _LivePlateCameraState extends State<LivePlateCamera>
         _ready = true;
       });
       if (kIsWeb) {
-        _webTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
+        _webTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
           if (_canRead) {
             _frame = _readPhoto(
               camera,
@@ -136,7 +136,7 @@ class _LivePlateCameraState extends State<LivePlateCamera>
         _error != null ||
         _frame != null ||
         !(widget.shouldRead?.call() ?? true) ||
-        now.difference(_lastFrame) < const Duration(milliseconds: 250)) {
+        now.difference(_lastFrame) < const Duration(milliseconds: 80)) {
       return false;
     }
     _lastFrame = now;

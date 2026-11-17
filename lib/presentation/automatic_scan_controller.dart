@@ -120,7 +120,15 @@ class AutomaticScanController extends ChangeNotifier {
           };
         }
         _notify();
-        if (!_closed && !stopped) await feedback.speak(status);
+        if (!_closed && !stopped) {
+          try {
+            await feedback.speak(status);
+          } catch (_) {
+            status =
+                '$status\nKhông phát được âm thanh. Kiểm tra loa và quyền âm thanh của trình duyệt.';
+            _notify();
+          }
+        }
         // The five seconds start only after the announcement has finished.
         retryAfter = _clock().add(const Duration(seconds: 5));
         _consensus.reset();
@@ -143,10 +151,15 @@ class AutomaticScanController extends ChangeNotifier {
       };
       _notify();
       if (!_closed && !stopped && result['action'] != 'duplicate') {
-        await feedback.success();
+        try {
+          await feedback.success();
+        } catch (_) {
+          status =
+              '$status\nKhông phát được âm báo. Lượt quét đã được ghi nhận.';
+        }
       }
     } catch (error) {
-      // A feedback/storage failure must never turn a committed entry into exit.
+      // A storage failure must never turn a committed entry into exit.
       fatal = true;
       status =
           '$status\n${error is ParkFailure ? error.message : 'Lỗi âm thanh hoặc bộ nhớ. Kiểm tra thiết bị rồi mở lại camera.'}';

@@ -51,6 +51,12 @@ không phát lại. Tất cả yêu cầu phải đăng nhập và có quyền v
 - Sai vé/bãi/giờ: đọc “Xe chưa đăng ký đỗ online hoặc quét nhầm, vui lòng thử lại”.
 - Quá giờ và thiếu tiền: đọc “Bạn đã gửi quá giờ, và số dư không đủ, vui lòng nạp thêm tiền”.
 - Sau khi giọng nói hoàn tất, chờ đủ 5 giây mới tiếp tục OCR và đối chiếu.
+- Thông báo là các file MP3 tiếng Việt đóng gói trong `assets/audio`, không dùng
+  giọng mặc định của trình duyệt. Lỗi loa vẫn hiện thông báo và cho phép thử lại,
+  không khóa camera hoặc gửi lại một lượt đã thành công.
+- Mỗi lượt ổn định gọi `kiosk.scan` trên máy chủ, không lọc bằng danh sách booking
+  cũ trong trang. Sau từ chối, lần thử mới dùng UUID mới để thấy booking vừa tạo;
+  chỉ khi chưa biết kết quả mạng mới giữ UUID cũ để chống thu tiền trùng.
 - Lượt chưa biết kết quả do mất kết nối được lưu trước khi gửi; khi thử lại hoặc
   khởi động lại, dùng cùng UUID, không chuyển một lần vào thành một lần ra.
 
@@ -95,6 +101,9 @@ Firebase/push đã cấu hình theo `docs/NOTIFICATIONS.md` và
 - Web: webcam qua `camera`, Tesseract.js 6.0.1 trong browser worker; ảnh không
   gửi lên dịch vụ OCR. Runtime/model tải từ CDN lúc khởi tạo, có thể được cache.
   Cần HTTPS hoặc localhost. Webcam trước được bỏ lật ngang cả preview và trước OCR.
+  Nhịp lấy khung là 80 ms, chỉ một OCR chạy tại một thời điểm; ảnh crop giới hạn
+  chiều rộng 960 px, phóng tối đa 2 lần. Giữ nguyên ba khung khớp trong năm khung,
+  ngưỡng tin cậy và chọn biển gần để tăng tốc mà vẫn kiểm tra biển số nhiều lần.
   Tìm vùng sáng dạng biển trắng/vàng trong khung, crop sát vùng đó và thêm viền trắng
   trước OCR. Nếu chưa đọc được, thử nhị phân cục bộ rồi đọc chữ rời trong khung.
   Biển một/hai dòng đều đi qua bước ghép theo vị trí. Giao diện hiển thị số khung

@@ -23,6 +23,15 @@ try {
   const context = await browser.newContext({viewport:{width:1280,height:900}});
   await context.addInitScript(() => {
     window.cameraScene = 'far';
+    window.testBookingActive = false;
+    window.viAnnouncements = [];
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function(...args) {
+      this.addEventListener('ended', () => {
+        if (this.currentSrc.includes('_vi.mp3')) window.viAnnouncements.push(this.currentSrc);
+      }, {once:true});
+      return play.apply(this,args);
+    };
     navigator.mediaDevices.enumerateDevices = async () => [
       {deviceId:'front-test',kind:'videoinput',label:'Front test camera',groupId:'test'},
       {deviceId:'usb-test',kind:'videoinput',label:'USB test camera',groupId:'test'},
@@ -68,9 +77,20 @@ try {
     await page.evaluate(()=>window.cameraScene='ambiguous');
     await page.getByText('Có nhiều biển gần nhau · Chỉ giữ một xe trong vùng quét',{exact:true}).waitFor({timeout:60000});
     assert.equal(scans.length,0,'equal targets must not trigger a scan');
+    const firstScanStart = Date.now();
     await page.evaluate(()=>window.cameraScene='near');
+    await page.locator('flt-semantics-host').getByText('Xe chưa đăng ký đỗ online hoặc quét nhầm, vui lòng thử lại',{exact:true}).waitFor({timeout:60000});
+    assert.equal(scans.length,1,'missing booking is rejected by the running session');
+    console.log(`PASS ${lane}: three-frame recognition to backend response ${Date.now()-firstScanStart}ms (test backend)`);
+    await page.waitForFunction(()=>window.viAnnouncements.length > 0, {timeout:30000});
+    assert.ok((await page.evaluate(()=>window.viAnnouncements[0])).includes('scan_invalid_ticket_vi.mp3'));
+    // A booking arrives after rejection. Keep the page and camera session open.
+    const start = Date.now();
+    await page.evaluate(()=>window.testBookingActive=true);
     await page.locator('flt-semantics-host').getByText('Đã xử lý biển số này · Chờ xe tiếp theo',{exact:true}).waitFor({timeout:60000});
-    assert.equal(scans.length,1,'a standing vehicle is processed exactly once');
+    assert.equal(scans.length,2,'new booking is accepted without reload, then the standing vehicle is blocked');
+    assert.ok(Date.now()-start < 15000, 'new booking should be accepted after the five-second cooldown');
+    console.log(`PASS ${lane}: new booking without reload, Vietnamese audio completed; retry ${Date.now()-start}ms including 5s cooldown`);
     assert.equal(scans[0].plate,'43A12345');
     assert.equal(scans[0].direction,lane==='Cam vào'?'entry':'exit');
     const video=page.locator('video').first(); await video.waitFor({state:'attached'});
