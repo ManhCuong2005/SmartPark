@@ -1,5 +1,11 @@
 \set ON_ERROR_STOP on
 begin;
+select public.test_assert((select relrowsecurity from pg_class
+ where oid='smartpark_private.kiosk_sessions'::regclass),'camera sessions have RLS enabled');
+select public.test_assert(not has_table_privilege('authenticated',
+ 'smartpark_private.kiosk_sessions','SELECT,INSERT,UPDATE,DELETE'),'clients cannot access camera sessions directly');
+select public.test_assert(not has_table_privilege('anon',
+ 'smartpark_private.kiosk_sessions','SELECT,INSERT,UPDATE,DELETE'),'anonymous clients cannot access camera sessions directly');
 insert into auth.users(id,email) values
  ('17000000-0000-0000-0000-000000000001','direction-customer@test.invalid'),
  ('17000000-0000-0000-0000-000000000004','direction-owner@test.invalid');

@@ -7,6 +7,7 @@ create table smartpark_private.kiosk_sessions (
  direction text not null check(direction in ('entry','exit')),
  created_at timestamptz not null default now()
 );
+alter table smartpark_private.kiosk_sessions enable row level security;
 revoke all on smartpark_private.kiosk_sessions from public,anon,authenticated;
 
 create or replace function smartpark_private.scan_plate(p_operation_id uuid,p_payload jsonb) returns jsonb
