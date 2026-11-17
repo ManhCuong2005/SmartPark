@@ -11,7 +11,7 @@ const server = createServer(async (request, response) => {
     const path = resolve(root, '.' + new URL(request.url, 'http://localhost').pathname);
     if (!path.startsWith(root + '/') && !path.startsWith(root + '\\') && path !== root) throw Error('Path');
     const file = path === root ? resolve(root, 'index.html') : path;
-    response.setHeader('Content-Type', ({'.js':'application/javascript','.wasm':'application/wasm','.html':'text/html','.json':'application/json'})[extname(file)] ?? 'application/octet-stream');
+    response.setHeader('Content-Type', ({'.js':'application/javascript','.mjs':'application/javascript','.wasm':'application/wasm','.html':'text/html','.json':'application/json'})[extname(file)] ?? 'application/octet-stream');
     response.end(await readFile(file));
   } catch { response.statusCode = 404; response.end(); }
 });

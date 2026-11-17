@@ -96,7 +96,8 @@ Firebase/push đã cấu hình theo `docs/NOTIFICATIONS.md` và
 
 ## Camera và giới hạn đã biết
 
-- Android/iOS: camera stream, crop vùng giữa khung trước OCR ML Kit Latin;
+- Android: ONNX Runtime 1.20 tìm vùng biển bằng model YOLOv9-t 384 đã đóng gói,
+  sau đó crop ảnh gốc cho ML Kit Latin đọc. iOS tiếp tục dùng OCR cũ.
   xử lý hướng ảnh và NV21/YUV/BGRA với row stride/pixel stride.
 - Web: webcam qua `camera`, Tesseract.js 6.0.1 trong browser worker; ảnh không
   gửi lên dịch vụ OCR. Runtime/model tải từ CDN lúc khởi tạo, có thể được cache.
@@ -104,11 +105,13 @@ Firebase/push đã cấu hình theo `docs/NOTIFICATIONS.md` và
   Nhịp lấy khung là 80 ms, chỉ một OCR chạy tại một thời điểm; ảnh crop giới hạn
   chiều rộng 960 px, phóng tối đa 2 lần. Giữ nguyên ba khung khớp trong năm khung,
   ngưỡng tin cậy và chọn biển gần để tăng tốc mà vẫn kiểm tra biển số nhiều lần.
-  Tìm vùng sáng dạng biển trắng/vàng trong khung, crop sát vùng đó và thêm viền trắng
+  ONNX Runtime Web 1.23.2 chạy cùng model để tìm vùng biển trước OCR. Khi model
+  bỏ sót hoặc crop chưa đọc được, giữ cách tìm vùng sáng làm dự phòng.
+  Crop sát vùng biển và thêm viền trắng
   trước OCR. Nếu chưa đọc được, thử nhị phân cục bộ rồi đọc chữ rời trong khung.
   Biển một/hai dòng đều đi qua bước ghép theo vị trí. Giao diện hiển thị số khung
   đã đọc và vẽ viền xanh quanh biển đang chọn, viền cam nếu có nhiều biển tương đương.
-- Mục tiêu xử lý tối đa 4 khung/giây; bỏ khung khi đang bận. Cần 3 kết quả giống
+- Nhịp kiểm tra khung 80 ms; bỏ khung khi đang bận, không chạy OCR chồng nhau. Cần 3 kết quả giống
   nhau trong 5 lần quan sát gần nhất, không chốt nếu khung hiện tại có nhiều ứng viên.
   Khoảng cách giữa hai lần đọc từ 8 giây trở lên sẽ xóa đồng thuận; không còn xóa
   ở mốc 2 giây khiến OCR chậm không bao giờ đủ ba khung.
@@ -123,10 +126,11 @@ Firebase/push đã cấu hình theo `docs/NOTIFICATIONS.md` và
 - Chặn riêng từng biển vừa xử lý, kể cả khi xe khác xuất hiện xen kẽ. Biển đó chỉ
   được quét lại khi thỏa điều kiện vắng mặt/30 giây nêu trên. Giao diện giữ thông báo
   đã xử lý khi biển vẫn xuất hiện, không đổi lại thành đang kiểm tra.
-- Đây là bản tìm vùng sáng + OCR + đồng thuận nhiều khung hình. Chưa có model chuyên
-  phát hiện biển Việt Nam, nắn phối cảnh hoặc bộ đo độ nhòe đã hiệu chỉnh ngoài bãi.
+- Đây là bản detector ONNX + OCR + đồng thuận nhiều khung hình. Model có sẵn chưa
+  được chứng nhận cho biển Việt Nam; chưa có nắn phối cảnh hoặc đo độ nhòe hiệu chỉnh ngoài bãi.
   Ngưỡng ảnh phải được kiểm chứng trên camera lắp thật. Đồng thuận có thể lặp lại
   một lỗi OCR; không thể hứa độ chính xác hoặc thời gian 1–2 giây trước phép đo đó.
+  Chi tiết nguồn model, runtime và giới hạn kiểm thử trong `docs/ONNX_CAMERA.md`.
 
 ## Kiểm chứng
 

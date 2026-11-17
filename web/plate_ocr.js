@@ -16,7 +16,7 @@
   }
   async function ensureReady() {
     return ready ??= (async () => {
-      await loadRuntime();
+      await Promise.all([loadRuntime(), SmartParkDetector.prepare()]);
       worker = await Tesseract.createWorker('eng', 1, {
         workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/worker.min.js',
         corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@6.0.0',
@@ -180,10 +180,16 @@
         return JSON.stringify({usable: false, lines: []});
       }
       const lines = [];
-      const regions = plateRegions(canvas);
+      const detected = await SmartParkDetector.detect(canvas);
+      const regions = detected.length ? detected : plateRegions(canvas);
       for (const region of regions) lines.push(...await readRegion(canvas, region));
+
+      // shortcut: fall back to the existing OCR for unfamiliar/printed plate shapes.
+      if (!hasPlateText(lines) && detected.length) {
+        for (const region of plateRegions(canvas)) lines.push(...await readRegion(canvas, region));
+      }
       if (!hasPlateText(lines)) {
-        lines.push(...await readRegion(canvas, {left: 0, top: 0, right: 1, bottom: 1}));
+        lines.push(...await readRegion(canvas, {left:0, top:0, right:1, bottom:1}));
       }
       return JSON.stringify({usable: true, lines});
     } finally { bitmap.close(); }
@@ -196,6 +202,7 @@
     worker = null;
     ready = null;
     if (previous) await previous.terminate();
+    await SmartParkDetector.close();
   }
   globalThis.SmartParkOCR = {prepare, read, close};
 })();
