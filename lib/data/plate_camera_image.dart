@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-import 'dart:ui' show Rect;
 import 'package:camera/camera.dart';
 import '../domain/models.dart';
 
@@ -26,42 +25,12 @@ PlateCameraImage preparePlateCameraImage(
   CameraImage image,
   int rotation, {
   required bool android,
-  Rect? uprightRegion,
 }) {
   final sideways = rotation == 90 || rotation == 270;
-  var width = ((image.width * (sideways ? .5 : .8)).floor() ~/ 2) * 2;
-  var height = ((image.height * (sideways ? .8 : .5)).floor() ~/ 2) * 2;
-  var left = ((image.width - width) ~/ 4) * 2;
-  var top = ((image.height - height) ~/ 4) * 2;
-  if (uprightRegion != null) {
-    final r = uprightRegion;
-    if (![r.left, r.top, r.right, r.bottom].every((v) => v.isFinite) ||
-        r.left < 0 ||
-        r.top < 0 ||
-        r.right > 1 ||
-        r.bottom > 1 ||
-        r.isEmpty) {
-      throw const ParkFailure('Vùng biển số không hợp lệ.');
-    }
-    final raw = switch (rotation) {
-      90 => Rect.fromLTRB(r.top, 1 - r.right, r.bottom, 1 - r.left),
-      180 => Rect.fromLTRB(1 - r.right, 1 - r.bottom, 1 - r.left, 1 - r.top),
-      270 => Rect.fromLTRB(1 - r.bottom, r.left, 1 - r.top, r.right),
-      _ => r,
-    };
-    left = (raw.left * image.width / 2 + 1e-6).floor() * 2;
-    top = (raw.top * image.height / 2 + 1e-6).floor() * 2;
-    final right = ((raw.right * image.width / 2 - 1e-6).ceil() * 2).clamp(
-      0,
-      image.width ~/ 2 * 2,
-    );
-    final bottom = ((raw.bottom * image.height / 2 - 1e-6).ceil() * 2).clamp(
-      0,
-      image.height ~/ 2 * 2,
-    );
-    width = right - left;
-    height = bottom - top;
-  }
+  final width = ((image.width * (sideways ? .5 : .8)).floor() ~/ 2) * 2;
+  final height = ((image.height * (sideways ? .8 : .5)).floor() ~/ 2) * 2;
+  final left = ((image.width - width) ~/ 4) * 2;
+  final top = ((image.height - height) ~/ 4) * 2;
   if (width < 2 ||
       height < 2 ||
       (android && ![1, 3].contains(image.planes.length)) ||

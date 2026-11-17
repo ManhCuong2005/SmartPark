@@ -7,7 +7,6 @@ import '../domain/plate_scanning.dart';
 import 'plate_camera_image.dart';
 
 class LivePlateReader {
-  static const _detector = MethodChannel('smartpark/plate_detector');
   final _recognizer = TextRecognizer(script: TextRecognitionScript.latin);
   Future<void> prepare() async {
     if (!Platform.isAndroid && !Platform.isIOS) {
@@ -15,7 +14,6 @@ class LivePlateReader {
         'Dùng Android/iOS hoặc mở bản Web bằng Chrome để quét camera.',
       );
     }
-    if (Platform.isAndroid) await _detector.invokeMethod<void>('prepare');
   }
 
   Future<List<PlateLine>?> read(
@@ -44,59 +42,6 @@ class LivePlateReader {
     }
     final cropped = preparePlateCameraImage(image, degrees, android: android);
     if (!cropped.usable) return null;
-    final crops = <PlateCameraImage>[];
-    if (android) {
-      final regions = await _detector.invokeListMethod<dynamic>('detect', {
-        'bytes': cropped.bytes,
-        'width': cropped.width,
-        'height': cropped.height,
-        'rotation': degrees,
-      });
-      if (regions == null) {
-        throw const ParkFailure('Model không trả về kết quả.');
-      }
-      for (final value in regions) {
-        final r = List<num>.from(value as List);
-        if (r.length != 4) {
-          throw const ParkFailure('Vùng biển số không hợp lệ.');
-        }
-        crops.add(
-          preparePlateCameraImage(
-            image,
-            degrees,
-            android: true,
-            uprightRegion: Rect.fromLTRB(
-              cropped.left + r[0] * cropped.widthFraction,
-              cropped.top + r[1] * cropped.heightFraction,
-              cropped.left + r[2] * cropped.widthFraction,
-              cropped.top + r[3] * cropped.heightFraction,
-            ),
-          ),
-        );
-      }
-      // shortcut: unfamiliar plate shapes fall back to guide OCR; calibrate with installed-camera footage.
-      if (crops.isEmpty) crops.add(cropped);
-    } else {
-      crops.add(cropped);
-    }
-    final lines = <PlateLine>[];
-    for (final crop in crops) {
-      lines.addAll(await _readCrop(crop, rotation, degrees, android));
-    }
-    if (android &&
-        !identical(crops.first, cropped) &&
-        scanCandidates(lines).isEmpty) {
-      return _readCrop(cropped, rotation, degrees, android);
-    }
-    return lines;
-  }
-
-  Future<List<PlateLine>> _readCrop(
-    PlateCameraImage cropped,
-    InputImageRotation rotation,
-    int degrees,
-    bool android,
-  ) async {
     final recognized = await _recognizer.processImage(
       InputImage.fromBytes(
         bytes: cropped.bytes,
@@ -133,8 +78,5 @@ class LivePlateReader {
 
   Future<List<PlateLine>?> readPhoto(XFile file, {bool mirrored = false}) =>
       throw UnsupportedError('Native scanning uses the live image stream.');
-  Future<void> close() async {
-    await _recognizer.close();
-    if (Platform.isAndroid) await _detector.invokeMethod<void>('close');
-  }
+  Future<void> close() => _recognizer.close();
 }

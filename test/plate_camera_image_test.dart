@@ -1,103 +1,19 @@
 import 'dart:typed_data';
-import 'dart:ui' show Rect;
 import 'package:camera/camera.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smartpark/data/plate_camera_image.dart';
 
 // Exercise native pixel layouts without invoking a camera or ML Kit.
-CameraImage frame(
-  List<Map<String, dynamic>> planes, {
-  int format = 35,
-  int width = 20,
-  int height = 20,
-}) =>
+CameraImage frame(List<Map<String, dynamic>> planes, {int format = 35}) =>
 // ignore: deprecated_member_use
 CameraImage.fromPlatformData({
-  'width': width,
-  'height': height,
+  'width': 20,
+  'height': 20,
   'format': format,
   'planes': planes,
 });
 
 void main() {
-  test(
-    'non-square camera preserves upright detector coordinates when rotated',
-    () {
-      final bytes = Uint8List(40 * 20 * 3 ~/ 2);
-      for (var y = 0; y < 20; y++) {
-        for (var x = 0; x < 40; x++) {
-          bytes[y * 40 + x] = y * 10 + x;
-        }
-      }
-      bytes.fillRange(800, bytes.length, 128);
-      final image = frame(
-        [
-          {'bytes': bytes, 'bytesPerRow': 40, 'bytesPerPixel': 1},
-        ],
-        format: 17,
-        width: 40,
-      );
-      const starts = {0: 68, 90: 52, 180: 88, 270: 56};
-      for (final entry in starts.entries) {
-        final crop = preparePlateCameraImage(
-          image,
-          entry.key,
-          android: true,
-          uprightRegion: const Rect.fromLTRB(.2, .3, .8, .6),
-        );
-        expect(crop.bytes.first, entry.value);
-        expect(crop.left, closeTo(.2, 1e-6));
-        expect(crop.top, closeTo(.3, 1e-6));
-        expect(crop.widthFraction, closeTo(.6, 1e-6));
-        expect(crop.heightFraction, closeTo(.3, 1e-6));
-      }
-    },
-  );
-  test('detected upright rectangle maps to packed NV21 in all rotations', () {
-    final bytes = Uint8List(600);
-    for (var y = 0; y < 20; y++) {
-      for (var x = 0; x < 20; x++) {
-        bytes[y * 20 + x] = y * 10 + x;
-      }
-    }
-    bytes.fillRange(400, 600, 128);
-    final image = frame([
-      {'bytes': bytes, 'bytesPerRow': 20, 'bytesPerPixel': 1},
-    ], format: 17);
-    const expected = {
-      0: [4, 6, 12, 6],
-      90: [6, 4, 6, 12],
-      180: [4, 8, 12, 6],
-      270: [8, 4, 6, 12],
-    };
-    for (final entry in expected.entries) {
-      final crop = preparePlateCameraImage(
-        image,
-        entry.key,
-        android: true,
-        uprightRegion: const Rect.fromLTRB(.2, .3, .8, .6),
-      );
-      final e = entry.value;
-      expect(
-        [crop.width, crop.height],
-        [e[2], e[3]],
-        reason: 'rotation ${entry.key}',
-      );
-      expect(crop.bytes.first, e[1] * 10 + e[0]);
-      expect(crop.bytes.length, crop.width * crop.height * 3 ~/ 2);
-      expect(crop.left, closeTo(.2, .00001));
-      expect(crop.top, closeTo(.3, .00001));
-    }
-    expect(
-      () => preparePlateCameraImage(
-        image,
-        0,
-        android: true,
-        uprightRegion: const Rect.fromLTRB(-.1, 0, .5, .5),
-      ),
-      throwsException,
-    );
-  });
   test(
     'crops padded three-plane YUV and preserves interleaved V/U samples',
     () {
