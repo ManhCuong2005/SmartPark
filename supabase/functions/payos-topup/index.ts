@@ -32,7 +32,7 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { headers: cors });
   if (request.method === "GET") {
     return new Response(
-      "Quay lại SmartPark và chọn Kiểm tra giao dịch để xem kết quả nạp tiền.",
+      "Quay lại SmartPark và chọn Kiểm tra thanh toán (vé xe) hoặc Kiểm tra giao dịch (nạp số dư) để xem kết quả.",
       { headers: { ...cors, "Content-Type": "text/plain; charset=utf-8" } },
     );
   }
